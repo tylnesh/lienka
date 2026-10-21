@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Baby log">
+<title>Baby log</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" id="mark"></span>
+    <span class="brandtext">
+      <b id="title"></b>
+      <span id="age" class="muted"></span>
+    </span>
+  </div>
+  <nav id="tabsDesktop" class="tabs" aria-label="views"></nav>
+  <div class="topright">
+    <button id="langBtn" class="iconbtn" type="button" title="jazyk"></button>
+    <a id="csvBtn" class="iconbtn" href="/export.csv" download></a>
+    <button id="settingsBtn" class="iconbtn" type="button"></button>
+  </div>
+</header>
+
+<div id="liveBar" class="livebar hidden"></div>
+
+<main id="main">
+  <section id="view-today" class="view v-today"></section>
+  <section id="view-log" class="view v-log hidden"></section>
+  <section id="view-stats" class="view v-stats hidden"></section>
+  <section id="view-kontrola" class="view v-kontrola hidden"></section>
+  <section id="view-insights" class="view v-insights hidden"></section>
+  <section id="view-doctor" class="view v-doctor hidden"></section>
+</main>
+
+<nav id="tabsMobile" class="tabbar" aria-label="views"></nav>
+
+<dialog id="entryDialog" class="sheet">
+  <form id="entryForm" method="dialog" novalidate>
+    <div class="sheet-head">
+      <span class="sheet-grip"></span>
+      <h2 id="sheetTitle"></h2>
+      <button type="button" id="sheetClose" class="iconbtn ghost"></button>
+    </div>
+    <div id="sheetBody" class="sheet-body"></div>
+    <div class="sheet-foot">
+      <button type="button" id="sheetDelete" class="danger ghost hidden"></button>
+      <span class="spacer"></span>
+      <button type="button" id="sheetCancel" class="ghost"></button>
+      <button type="submit" id="sheetSave" class="primary"></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="settingsDialog" class="sheet narrow">
+  <div class="sheet-head">
+    <span class="sheet-grip"></span>
+    <h2 id="settingsTitle"></h2>
+    <button type="button" id="settingsClose" class="iconbtn ghost"></button>
+  </div>
+  <div id="settingsBody" class="sheet-body"></div>
+</dialog>
+
+<dialog id="listDialog" class="sheet narrow">
+  <div class="sheet-head">
+    <span class="sheet-grip"></span>
+    <h2 id="listTitle"></h2>
+    <button type="button" id="listClose" class="iconbtn ghost"></button>
+  </div>
+  <div id="listBody" class="sheet-body"></div>
+</dialog>
+
+<dialog id="ackDialog" class="sheet narrow">
+  <div class="sheet-head">
+    <span class="sheet-grip"></span>
+    <h2 id="ackTitle"></h2>
+    <button type="button" id="ackClose" class="iconbtn ghost"></button>
+  </div>
+  <div id="ackBody" class="sheet-body"></div>
+  <div class="sheet-foot">
+    <span class="spacer"></span>
+    <button type="button" id="ackCancel" class="ghost"></button>
+    <button type="button" id="ackSave" class="primary"></button>
+  </div>
+</dialog>
+
+<dialog id="taskDialog" class="sheet narrow">
+  <div class="sheet-head">
+    <span class="sheet-grip"></span>
+    <h2 id="taskTitle"></h2>
+    <button type="button" id="taskClose" class="iconbtn ghost"></button>
+  </div>
+  <div id="taskBody" class="sheet-body"></div>
+</dialog>
+
+<dialog id="taskEditDialog" class="sheet narrow">
+  <form id="taskEditForm" method="dialog" novalidate>
+    <div class="sheet-head">
+      <span class="sheet-grip"></span>
+      <h2 id="taskEditTitle"></h2>
+      <button type="button" id="taskEditClose" class="iconbtn ghost"></button>
+    </div>
+    <div id="taskEditBody" class="sheet-body"></div>
+    <div class="sheet-foot">
+      <button type="button" id="taskEditDelete" class="danger ghost hidden"></button>
+      <span class="spacer"></span>
+      <button type="button" id="taskEditCancel" class="ghost"></button>
+      <button type="submit" id="taskEditSave" class="primary"></button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<p id="offlineNote" class="offline hidden"></p>
+
+</body>
+</html>

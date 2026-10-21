@@ -1,0 +1,14 @@
+# keep runtime state out of the build context even if COPY lines change later
+*.db
+backups/
+certs/
+deploy/
+deploy.sh
+llm.json
+docs/
+__pycache__/
+tools/appicon-candidates/
+tools/*static*.html
+tools/shot.mjs
+tools/checklayout.mjs
+tools/gen-*.mjs

@@ -1,0 +1,20 @@
+# runtime data & secrets — never publish
+*.db
+backups/
+certs/
+llm.json
+data/
+
+# personal infra (hosts, LAN IPs, wireguard)
+deploy/
+deploy.sh
+
+# private notes & journals (family context, prod references) — stay local
+docs/
+
+# generated output
+screenshots/
+
+# noise
+__pycache__/
+*.pyc
