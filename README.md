@@ -23,7 +23,7 @@ Plain Python 3.10+ (stdlib only, zero dependencies):
 DATA_DIR=./data BIRTH_DATE=2026-01-15 USERS=parent1,parent2,others python3 server.py
 ```
 
-…then open `http://<host>:8472/`. With TLS material (`CERT`/`KEY`) the same port serves HTTPS; a plain-HTTP sidecar on `8473` offers `/ca.crt` for your own CA. Without certs it is plain HTTP — fine on a trusted LAN, add TLS via the options below when you want green locks.
+…then open `http://<host>:8472/`. On first run the app greets you with a small setup card — name your caregivers and birth date there; `USERS` / `BIRTH_DATE` above are only initial defaults, once saved in the app they live in the database. With TLS material (`CERT`/`KEY`) the same port serves HTTPS; a plain-HTTP sidecar on `8473` offers `/ca.crt` for your own CA. Without certs it is plain HTTP — fine on a trusted LAN, add TLS via the options below when you want green locks.
 
 Docker:
 
@@ -40,8 +40,8 @@ All via environment variables (see `server.py` docstring for the canonical list)
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `DATA_DIR` | folder holding `baby.db` — this is the whole app state; back it up | `/data` |
-| `USERS` | comma-separated caregiver ids shown in the UI | `parent1,parent2,others` |
-| `BIRTH_DATE` | `YYYY-MM-DD`, drives age readouts & growth charts | *(empty = age hidden)* |
+| `USERS` | comma-separated caregiver ids shown in the UI — editable later in Settings, stored values win | `parent1,parent2,others` |
+| `BIRTH_DATE` | `YYYY-MM-DD`, drives age readouts & growth charts — editable later in Settings | *(empty = age hidden)* |
 | `HOST` / `PORT` | bind address / main listener | `0.0.0.0` / `8472` |
 | `HTTP_PORT` | plain-HTTP `/ca.crt` sidecar (0 = off) | `8473` |
 | `CERT` / `KEY` / `CA_CERT` | TLS material, PEM | *(off = plain HTTP)* |
@@ -80,7 +80,7 @@ node tools/shot.mjs --scenario today --tag dev                                  
 
 ## Roadmap
 
-Snap Store package (`snapcraft.yaml`, strict confinement), a first-run setup wizard (editable users, birth date — replacing the `USERS`/`BIRTH_DATE` env vars), optional token/PIN gate for non-LAN setups, and guided Let's Encrypt issuance. Ideas welcome via issues.
+Snap Store package (`snapcraft.yaml`, strict confinement), optional token/PIN gate for non-LAN setups, and guided Let's Encrypt issuance. Ideas welcome via issues.
 
 ## Privacy
 

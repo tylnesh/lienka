@@ -14,10 +14,14 @@ Standard library only (runs anywhere, e.g. in python:3.12-alpine). One SQLite fi
     CA_CERT     root certificate offered at /ca.crt
     USERS       comma-separated caregiver ids shown in the UI   default: parent1,parent2,others
     BIRTH_DATE  used for the age readout, e.g. 2026-01-15       default: "" (age hidden)
+                (both env values are first-run defaults only — once saved in the app's Settings /
+                 setup card they live in the DB `settings` table and those win from then on)
     TZ          container timezone; event times are wall-clock local time
 
 API:
     GET    /api/meta
+    GET    /api/settings            effective family settings {users, birth_date, configured}
+    POST   /api/settings            {users?, birth_date?, renames?:[{from,to}]} — renames rewrite past entries' user label
     GET    /api/entries?from=YYYY-MM-DD&to=YYYY-MM-DD&user=&kind=&limit=
     POST   /api/entries            {user,kind,at,...}
     PUT    /api/entries/<id>       partial update (used to end a running sleep)
@@ -55,7 +59,7 @@ CERT = os.environ.get("CERT", "")
 KEY = os.environ.get("KEY", "")
 CA_CERT = os.environ.get("CA_CERT", "")
 BIRTH_DATE = os.environ.get("BIRTH_DATE", "")
-VERSION = "1.18"
+VERSION = "1.20"
 
 LOCK = threading.Lock()
 USERS = [u.strip() for u in os.environ.get("USERS", "parent1,parent2,others").split(",") if u.strip()] or ["parent1", "parent2", "others"]
@@ -92,6 +96,29 @@ def db() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+
+def current_settings() -> dict:
+    """Family settings kept in the DB; the USERS / BIRTH_DATE env vars act as first-run defaults only.
+    Once saved via POST /api/settings (Settings UI / first-run card), stored values win."""
+    users, birth, keys = list(USERS), BIRTH_DATE, set()
+    try:
+        with db() as conn:
+            rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    except sqlite3.Error:  # fresh data dir before init_db — fall back to env defaults
+        rows = []
+    for row in rows:
+        keys.add(row["key"])
+        if row["key"] == "users":
+            try:
+                parsed = json.loads(row["value"])
+                if isinstance(parsed, list) and parsed:
+                    users = [str(u) for u in parsed]
+            except ValueError:
+                pass
+        elif row["key"] == "birth_date":
+            birth = row["value"]
+    return {"users": users, "birth_date": birth, "configured": "users" in keys}
 
 
 def init_db() -> None:
@@ -141,6 +168,14 @@ def init_db() -> None:
               UNIQUE(task_id, scheduled_at)
             );
             CREATE INDEX IF NOT EXISTS task_checkins_time ON task_checkins(scheduled_at DESC);
+            """
+        )
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS settings(
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL
+            );
             """
         )
         task_cols = [row[1] for row in conn.execute("PRAGMA table_info(tasks)")]
@@ -371,6 +406,52 @@ def clean_scale(raw, field: str, errors: dict):
     return round(value, 1)
 
 
+USER_MAX = 8
+
+
+def clean_name(raw):
+    """One caregiver name: short printable string with collapsed whitespace, or None."""
+    if not isinstance(raw, str):
+        return None
+    name = " ".join(raw.split())
+    if not (1 <= len(name) <= 24) or any(ord(c) < 32 for c in name):
+        return None
+    return name
+
+
+def clean_users(raw):
+    """Ordered unique caregiver names (max USER_MAX). Returns (users, error)."""
+    if not isinstance(raw, list) or not raw:
+        return None, "empty"
+    out: list[str] = []
+    for item in raw:
+        name = clean_name(item)
+        if name is None:
+            return None, "bad_value"
+        if name not in out:
+            out.append(name)
+    if not out:
+        return None, "empty"
+    if len(out) > USER_MAX:
+        return None, "too_many"
+    return out, None
+
+
+def clean_birth_date(raw):
+    """'' (= hide age) or a plausible ISO calendar date. Returns (birth_date, error)."""
+    if raw in (None, ""):
+        return "", None
+    if not isinstance(raw, str):
+        return None, "bad_date"
+    try:
+        d = date.fromisoformat(raw[:10])
+    except ValueError:
+        return None, "bad_date"
+    if not (date(2000, 1, 1) <= d <= datetime.now().date() + timedelta(days=366)):
+        return None, "out_of_range"
+    return raw[:10], None
+
+
 def clean_text(raw, limit: int = 2000):
     if raw is None:
         return None
@@ -409,7 +490,7 @@ def validate(body: dict) -> tuple[dict | None, dict]:
     user = body.get("user")
     kind = body.get("kind")
     timer = bool(body.get("timer"))
-    if user not in USERS:
+    if user not in current_settings()["users"]:
         errors["user"] = "bad_value"
     if kind not in KINDS:
         errors["kind"] = "bad_value"
@@ -520,7 +601,7 @@ def validate_update(body: dict, existing: sqlite3.Row) -> tuple[dict, dict]:
 
     if "user" in body:
         user = body.get("user")
-        if user in USERS:
+        if user in current_settings()["users"]:
             updates["user"] = user
         elif user is None or user == "":
             errors["user"] = "required"
@@ -816,17 +897,24 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(STATIC, "sw.js"), "rb") as fh:
                 self._send(HTTPStatus.OK, fh.read(), TYPES[".js"])
         elif path == "/api/meta":
+            cfg = current_settings()
             age = ""
             try:
-                age = str((datetime.now().date() - date.fromisoformat(BIRTH_DATE)).days)
+                age = str((datetime.now().date() - date.fromisoformat(cfg["birth_date"])).days)
             except ValueError:
                 pass
+            with db() as conn:
+                has_entries = conn.execute("SELECT EXISTS(SELECT 1 FROM entries LIMIT 1)").fetchone()[0]
             self._json(HTTPStatus.OK, {
-                "users": USERS, "kinds": KINDS, "diaper_types": DIAPER_TYPES,
+                "users": cfg["users"], "kinds": KINDS, "diaper_types": DIAPER_TYPES,
                 "diaper_colours": DIAPER_COLOURS, "feed_methods": FEED_METHODS,
-                "measure_kinds": MEASURE_KINDS, "birth_date": BIRTH_DATE,
+                "measure_kinds": MEASURE_KINDS, "birth_date": cfg["birth_date"],
                 "age_days": age, "server_time": now_local(), "version": VERSION,
+                "setup_needed": bool(not cfg["configured"] and not has_entries),
             })
+        elif path == "/api/settings":
+            cfg = current_settings()
+            self._json(HTTPStatus.OK, {"settings": cfg})
         elif path == "/api/entries":
             self._entries()
         elif re.match(r"^/api/entries/\d+/photos$", path):
@@ -865,7 +953,7 @@ class Handler(BaseHTTPRequestHandler):
         if valid_day(q.get("to", "")):
             where.append("at <= ?")
             args.append(q["to"] + "T23:59")
-        if q.get("user") in USERS:
+        if q.get("user") in current_settings()["users"]:
             where.append("user = ?")
             args.append(q["user"])
         if q.get("kind") in KINDS:
@@ -1194,6 +1282,49 @@ class Handler(BaseHTTPRequestHandler):
             if value is not None and not (0.02 <= value <= 40):
                 value = None
             self._json(HTTPStatus.OK, {"value": round(value, 3) if value is not None else None, "text": reply[:80]})
+        elif path == "/api/settings":
+            body, err = self._read_json()
+            if err:
+                self._json(HTTPStatus.BAD_REQUEST, {"errors": {"body": err}})
+                return
+            cfg = current_settings()
+            users, birth, errors = cfg["users"], cfg["birth_date"], {}
+            if "users" in body:
+                users, e = clean_users(body.get("users"))
+                if e:
+                    errors["users"] = e
+            if "birth_date" in body:
+                birth, e = clean_birth_date(body.get("birth_date"))
+                if e:
+                    errors["birth_date"] = e
+            renames: list[dict] = []
+            raw_renames = body.get("renames") or []
+            if not isinstance(raw_renames, list):
+                errors["renames"] = "bad_value"
+            else:
+                for r in raw_renames:
+                    src, dst = (clean_name(r.get("from")), clean_name(r.get("to"))) if isinstance(r, dict) else (None, None)
+                    if not src or not dst or src == dst:
+                        errors["renames"] = "bad_value"
+                        continue
+                    renames.append({"from": src, "to": dst})
+            if errors:
+                self._json(HTTPStatus.BAD_REQUEST, {"errors": errors})
+                return
+            with LOCK, db() as conn:
+                for r in renames:  # keep history readable under the new label
+                    conn.execute("UPDATE entries SET user=? WHERE user=?", (r["to"], r["from"]))
+                    conn.execute("UPDATE task_checkins SET user=? WHERE user=?", (r["to"], r["from"]))
+                conn.execute(
+                    "INSERT INTO settings(key, value) VALUES('users', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (json.dumps(users, ensure_ascii=False),),
+                )
+                conn.execute(
+                    "INSERT INTO settings(key, value) VALUES('birth_date', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (birth,),
+                )
+            self._json(HTTPStatus.OK, {"settings": {"users": users, "birth_date": birth, "configured": True}})
+            return
         elif path == "/api/tasks":
             body, err = self._read_json()
             if err:
@@ -1221,7 +1352,7 @@ class Handler(BaseHTTPRequestHandler):
             task_id = clean_int(body.get("task_id"), "task_id", {}, 100000)
             scheduled_at = body.get("scheduled_at")
             status = body.get("status") if body.get("status") in ("done", "skipped", "pending") else "done"
-            who = body.get("user") if body.get("user") in USERS else None
+            who = body.get("user") if body.get("user") in current_settings()["users"] else None
             note = clean_text(body.get("note"), 500)
             if not task_id or not valid_stamp(scheduled_at):
                 self._json(HTTPStatus.BAD_REQUEST, {"errors": {"task_id": "required", "scheduled_at": "bad_datetime"}})

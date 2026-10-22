@@ -553,6 +553,20 @@ dialog.sheet form, dialog.sheet > div:not(.sheet-head) { display: flex; flex-dir
 .setrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 13px 0;
   border-bottom: 1px solid var(--line-soft); }
 .setrow:last-child { border-bottom: 0; }
+
+/* family setup editor — first-run card on Today + section in Settings */
+.setupblock { display: flex; flex-direction: column; gap: 8px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.setupblock .setrow { border-bottom: 0; padding: 0; }
+.setuprows { display: flex; flex-direction: column; gap: 6px; }
+.setuprow { display: flex; align-items: center; gap: 6px; }
+.setuprow input, .setupbirth input {
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 11px; padding: 10px 12px; min-width: 0;
+}
+.setuprow input { flex: 1 1 auto; }
+.setupbirth { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.setup-first { display: flex; flex-direction: column; gap: 9px; }
+.setupsub { margin: 0; }
 .setrow .lbl { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .setrow .lbl b { font-size: 14px; }
 .setrow .lbl small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }

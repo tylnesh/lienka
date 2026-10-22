@@ -3,12 +3,13 @@
 
 /* baby-log PWA — views: today / log / stats / insights, entry editing in a modal sheet. */
 
-const API = { meta: "/api/meta", entries: "/api/entries", summary: "/api/summary", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
+const API = { meta: "/api/meta", settings: "/api/settings", entries: "/api/entries", summary: "/api/summary", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
 
 const I18N = {
   sk: {
     title: "Denník miminka",
     users: { others: "Ostatní" },
+    setup: { title: "Nastavte Lienku", sub: "Kto sa o bábätko stará a kedy sa narodilo? Dá sa to kedykoľvek upraviť v Nastaveniach.", users: "Ošetrovatelia", addName: "Meno (napr. Mamička)", add: "Pridať človeka", remove: "Odstrániť", birth: "Dátum narodenia", birthSub: "Zostáva na vašom serveri — vek a rastové grafy sa sprístupnia po nastavení.", save: "Uložiť nastavenie", saved: "Nastavenie uložené", needUser: "Zadajte aspoň jedno meno.", badRejected: "Server odmietol hodnoty", failed: "Nepodarilo sa uložiť — ste online?", renameNote: "Premenovanie prepíše aj staršie záznamy.", removedNote: "Po odstránení zostanú staré záznamy s pôvodným menom.", },
     kinds: { diaper: "Plenka", feed: "Kojenie", sleep: "Spánok", walk: "Prechádzka", bath: "Kúpeľ", medication: "Lieky", activity: "Aktivita", task: "Úloha", measure: "Meranie", note: "Poznámka" },
     kind_sub: {
       diaper: "mokrá · stolica", feed: "časovač · ml", sleep: "spí / vstal", walk: "čas vonku",
@@ -236,6 +237,7 @@ const I18N = {
   en: {
     title: "Baby log",
     users: { others: "Others" },
+    setup: { title: "Set up Lienka", sub: "Who cares for the baby, and when was the baby born? You can change this any time in Settings.", users: "Caregivers", addName: "Name (e.g. Mama)", add: "Add person", remove: "Remove", birth: "Birth date", birthSub: "Stays on your server — age and growth charts unlock once set.", save: "Save setup", saved: "Setup saved", needUser: "Enter at least one name.", badRejected: "Server rejected the values", failed: "Could not save — are you online?", renameNote: "Renaming relabels past entries too.", removedNote: "Removing someone keeps their existing entries under the old label.", },
     kinds: { diaper: "Diaper", feed: "Feed", sleep: "Sleep", walk: "Walk", bath: "Bath", medication: "Medication", activity: "Activity", task: "Task", measure: "Measure", note: "Note" },
     kind_sub: {
       diaper: "wet · dirty", feed: "timer · ml", sleep: "asleep / awake", walk: "outdoors",
@@ -1406,7 +1408,7 @@ function renderToday() {
   right.append(nextFeedCard());
   right.append(lastEventsCard());
 
-  root.append(importantNoticesCard(), remindersCard(), quick, right);
+  root.append(...(meta && meta.setup_needed ? [setupCard()] : []), importantNoticesCard(), remindersCard(), quick, right);
 }
 
 function quickGrid() {
@@ -3863,6 +3865,70 @@ function applyTheme() {
   if (tag) tag.setAttribute("content", dark ? "#0e1116" : "#f2f5f8");
 }
 
+/* ---------- family setup: caregivers + birth date (server-side settings, shared by all devices) ---------- */
+
+function setupForm(onSaved) {
+  let rows = (meta && Array.isArray(meta.users) ? meta.users : []).map((u) => ({ from: u, name: u }));
+  const rowsBox = h("div", { class: "setuprows" });
+  const renderRows = () => {
+    rowsBox.innerHTML = "";
+    for (const row of rows) {
+      const inp = h("input", { type: "text", maxlength: "24", value: row.name, placeholder: t("setup.addName"), oninput: (ev) => { row.name = ev.target.value; } });
+      rowsBox.append(h("div", { class: "setuprow" }, inp, rows.length > 1
+        ? h("button", { type: "button", class: "mini ghost", title: t("setup.remove"), "aria-label": t("setup.remove"), html: icon("x", "sm"), onclick: () => { rows = rows.filter((r) => r !== row); renderRows(); } })
+        : null));
+    }
+  };
+  renderRows();
+  const addBtn = h("button", { type: "button", class: "mini ghost wide", onclick: () => {
+    if (rows.length >= 8) return;
+    rows.push({ from: null, name: "" });
+    renderRows();
+    const inputs = rowsBox.querySelectorAll("input");
+    const last = inputs[inputs.length - 1];
+    if (last) last.focus();
+  } }, "+ " + t("setup.add"));
+  const birth = h("input", { type: "date", value: (meta && meta.birth_date) || "" });
+  const saveBtn = h("button", { type: "button", class: "primary", onclick: async () => {
+    const names = [...new Set(rows.map((r) => r.name.trim()).filter(Boolean))];
+    if (!names.length) { toast(t("setup.needUser"), { err: true }); return; }
+    const renames = rows.map((r) => ({ from: r.from, to: r.name.trim() })).filter((r) => r.from && r.to && r.from !== r.to);
+    saveBtn.disabled = true;
+    try {
+      await api(API.settings, { method: "POST", body: JSON.stringify({ users: names, renames, birth_date: birth.value }) });
+      await loadMeta();
+      await refresh();
+      toast(t("setup.saved"), { icon: "check" });
+      if (onSaved) onSaved();
+    } catch (e) {
+      const field = e.fields && (e.fields.users || e.fields.birth_date || e.fields.renames);
+      toast(field ? `${t("setup.badRejected")} (${field})` : t("setup.failed"), { err: true });
+    } finally { saveBtn.disabled = false; }
+  } }, t("setup.save"));
+  return { rowsBox, addBtn, birth, saveBtn };
+}
+
+// Settings-sheet section (re-opened after save so the fields show stored values)
+function setupBlock() {
+  const f = setupForm(() => openSettings());
+  return h("div", { class: "setupblock" },
+    h("div", { class: "setrow nomask" }, h("span", { class: "lbl" }, h("b", {}, t("setup.users")), h("small", {}, `${t("setup.renameNote")} ${t("setup.removedNote")}`))),
+    f.rowsBox, f.addBtn,
+    h("div", { class: "setrow nomask" }, h("span", { class: "lbl" }, h("b", {}, t("setup.birth")), h("small", {}, t("setup.birthSub"))), f.birth),
+    f.saveBtn);
+}
+
+// First-run card on Today (only while meta.setup_needed; saving refreshes the view)
+function setupCard() {
+  const f = setupForm(null);
+  return h("section", { class: "card setup-first" },
+    h("div", { class: "cardhead" }, h("h2", {}, t("setup.title"))),
+    h("p", { class: "muted setupsub" }, t("setup.sub")),
+    f.rowsBox, f.addBtn,
+    h("div", { class: "setupbirth" }, h("span", { class: "muted" }, t("setup.birth")), f.birth),
+    f.saveBtn);
+}
+
 function openSettings() {
   $("settingsTitle").textContent = t("settings.title");
   $("settingsClose").innerHTML = icon("x", "sm");
@@ -3878,6 +3944,8 @@ function openSettings() {
     h("span", { class: "lbl" }, h("b", {}, t("settings.language"))),
     seg([["sk", "Slovenčina"], ["en", "English"]], lang, (v) => { lang = v; localStorage.setItem("baby.lang", v); applyTheme(); renderAll(); openSettings(); })
   ));
+
+  body.append(setupBlock());
 
   body.append(h("div", { class: "setrow" },
     h("span", { class: "lbl" }, h("b", {}, t("settings.theme"))),
