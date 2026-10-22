@@ -215,9 +215,15 @@ def init_db() -> None:
 LLM_PATH = os.path.join(DATA, "llm.json")
 LLM_PROVIDERS = ("off", "openai", "anthropic", "custom")
 LLM_PRESET_BASES = {"openai": "https://api.openai.com/v1", "anthropic": "https://api.anthropic.com"}
-SCALE_PROMPT = ("The photo shows the digital display of a baby scale; the digits may be rotated sideways or upside down. "
-                "Read the number printed on the display (weight in kilograms, e.g. 3.973 or 0.385). "
-                "Reply with only that number. If no display is visible, reply: none")
+SCALE_PROMPT = ("The photo shows the digital display of a baby scale; the seven-segment digits may look "
+                "sideways or upside down. Report the number exactly as printed (kilograms, keep every "
+                "digit and the decimal point), e.g. 3.973 or 4.009. Reply with only that number. "
+                "If no display is visible, reply: none")
+SCALE_PROMPT_2 = ("The SAME photo of a digital baby-scale display is attached several times: as taken "
+                  "and additionally rotated by 90 degrees both ways, so in at least one copy the "
+                  "seven-segment digits stand upright. Use whichever copy is easiest to read. Report "
+                  "the number exactly as printed (kilograms, keep every digit and the decimal point), "
+                  "e.g. 3.973 or 4.009. Reply with only that number. If no display is visible, reply: none")
 
 
 def llm_load() -> dict:
@@ -289,18 +295,19 @@ def _anthropic_msg(m: dict) -> dict:
     return {"role": m["role"], "content": blocks}
 
 
-def llm_call(cfg: dict, messages: list, timeout: int = 75, max_tokens: int = 0) -> str:
+def llm_call(cfg: dict, messages: list, timeout: int = 75, max_tokens: int = 0, temperature=None) -> str:
     model = cfg.get("model") or ""
     base = (cfg.get("base_url") or LLM_PRESET_BASES.get(cfg["provider"], "")).rstrip("/")
     if cfg["provider"] == "off" or not model or (cfg["provider"] != "anthropic" and not base):
         raise ValueError("not_configured")
     mt = max_tokens or cfg["max_tokens"]
+    temp = cfg["temperature"] if temperature is None else temperature
     key = cfg.get("api_key") or ""
     if cfg["provider"] == "anthropic":
         base = base or "https://api.anthropic.com"
         system = "\n".join(str(m["content"]) for m in messages
                            if m["role"] == "system" and isinstance(m.get("content"), str))
-        payload = {"model": model, "max_tokens": mt, "temperature": cfg["temperature"],
+        payload = {"model": model, "max_tokens": mt, "temperature": temp,
                    "messages": [_anthropic_msg(m) for m in messages if m["role"] != "system"]}
         if system:
             payload["system"] = system
@@ -310,7 +317,7 @@ def llm_call(cfg: dict, messages: list, timeout: int = 75, max_tokens: int = 0) 
             data = json.loads(resp.read(400_000).decode("utf-8"))
         blocks = data.get("content") or []
         return "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text").strip()
-    payload = {"model": model, "messages": messages, "max_tokens": mt, "temperature": cfg["temperature"]}
+    payload = {"model": model, "messages": messages, "max_tokens": mt, "temperature": temp}
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = "Bearer " + key
@@ -1253,20 +1260,26 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": err})
                 return
+            img_re = re.compile(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")
             image = str((body or {}).get("image") or "")
-            if not re.match(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$", image):
+            if not img_re.match(image):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "bad_image"})
                 return
+            rots = body.get("image_rots")
+            rots = [str(r) for r in rots if isinstance(r, str) and img_re.match(r)][:2] if isinstance(rots, list) else []
             cfg = llm_load()
             if cfg["provider"] == "off" or not cfg.get("model"):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "not_configured"})
                 return
-            msgs = [{"role": "user", "content": [
-                {"type": "text", "text": SCALE_PROMPT},
-                {"type": "image_url", "image_url": {"url": image}}]}]
+            parts = [{"type": "text", "text": SCALE_PROMPT_2 if rots else SCALE_PROMPT},
+                     {"type": "image_url", "image_url": {"url": image}}]
+            for r in rots:
+                parts.append({"type": "image_url", "image_url": {"url": r}})
+            msgs = [{"role": "user", "content": parts}]
             try:
-                # thinking models burn most of the budget in reasoning_content before answering
-                reply = llm_call(cfg, msgs, timeout=llm_timeout(cfg, "chat"), max_tokens=1400)
+                # thinking models burn most of the budget in reasoning_content before answering;
+                # temp 0 because seven-segment reads are borderline and sampling drops digits
+                reply = llm_call(cfg, msgs, timeout=llm_timeout(cfg, "chat"), max_tokens=1400, temperature=0)
             except Exception as exc:  # noqa: BLE001
                 self._json(HTTPStatus.BAD_REQUEST, {"error": f"{type(exc).__name__}: {exc}"[:200]})
                 return

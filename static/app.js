@@ -2623,6 +2623,18 @@ async function compressImage(file) {
   return cv.toDataURL("image/jpeg", 0.85);
 }
 
+// ±90° copies for the AI scale reader: a sideways photo flips one way or the other depending on
+// how the phone was held, so both rotations guarantee at least one upright view to read from.
+async function rotateJpeg(dataUrl, deg) {
+  const im = await loadImage(dataUrl);
+  const cv = document.createElement("canvas");
+  cv.width = im.height; cv.height = im.width;
+  const ctx = cv.getContext("2d");
+  if (deg > 0) { ctx.translate(cv.width, 0); ctx.rotate(Math.PI / 2); } else { ctx.translate(0, cv.height); ctx.rotate(-Math.PI / 2); }
+  ctx.drawImage(im, 0, 0);
+  return cv.toDataURL("image/jpeg", 0.85);
+}
+
 const SEG_MAP = { "1111110": "0", "0110000": "1", "1101101": "2", "1111001": "3", "0110011": "4", "1011011": "5", "1011111": "6", "1110000": "7", "1111111": "8", "1111011": "9", "0000001": "-" };
 const CELL_PROBES = [ // segment occupancy boxes a,b,c,d,e,f,g as fractions of the cell box
   [0.18, 0.82, 0.04, 0.13], [0.82, 0.96, 0.14, 0.45], [0.82, 0.96, 0.55, 0.86], [0.18, 0.82, 0.87, 0.97],
@@ -2844,8 +2856,10 @@ function buildScaleSection(entry, feedMlHolder) {
       const llmReady = () => llmCfg && llmCfg.provider !== "off" && llmCfg.model;
       const aiRead = async (dataUrl, restoreTo) => {
         note.textContent = t("scale.aiWait");
+        const payload = { image: dataUrl };
+        try { payload.image_rots = [await rotateJpeg(dataUrl, 90), await rotateJpeg(dataUrl, -90)]; } catch { /* one copy is fine too */ }
         try {
-          const d = await api(API.llmScale, { method: "POST", body: JSON.stringify({ image: dataUrl }) });
+          const d = await api(API.llmScale, { method: "POST", body: JSON.stringify(payload) });
           if (!kg.isConnected) return; // dialog closed meanwhile
           if (d && Number.isFinite(d.value)) {
             kg.value = fmtKg(d.value); state[key].g = Math.round(d.value * 1000); kg.classList.remove("bad-in");
