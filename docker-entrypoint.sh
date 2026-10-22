@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2026 Michal Kohutek
+# SPDX-License-Identifier: GPL-3.0-only
+
 # Lienka container entrypoint: ensure schema, optionally seed a throwaway demo, serve.
 set -eu
 cd /app

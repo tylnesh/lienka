@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Michal Kohutek
+// SPDX-License-Identifier: GPL-3.0-only
+
 // Renders static/icon.svg + PNG icon assets from the chosen pacifier-mint candidate.
 // Run from repo root: node tools/gen-icon-pngs.mjs
 import fs from "node:fs";

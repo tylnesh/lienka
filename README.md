@@ -85,3 +85,8 @@ Snap Store package (`snapcraft.yaml`, strict confinement), a first-run setup wiz
 ## Privacy
 
 No telemetry, no third-party servers, no accounts. The only outbound network requests are ones you configure yourself (the optional BYO-LLM endpoint) or explicit documentation links. One SQLite file is the whole state: copy it, restore it, own it.
+
+## License
+
+GPL-3.0-only (see [LICENSE](LICENSE)). All source files carry an `SPDX-License-Identifier` header; icons and assets in this repository are covered by the same license.
+

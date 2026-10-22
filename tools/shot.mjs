@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Michal Kohutek
+// SPDX-License-Identifier: GPL-3.0-only
+
 // Screenshot harness for the baby-log PWA. Run from the repo root:
 //   NODE_PATH=$(npm root -g) node tools/shot.mjs --scenario plain --tag before
 // Scenarios are defined in SCENARIOS below; add one per UI state you want to review.

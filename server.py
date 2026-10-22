@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Michal Kohutek
+# SPDX-License-Identifier: GPL-3.0-only
+
 """Lienka — baby log: shared diary of nappies, feeds, sleep, measurements and notes for a small group of caregivers.
 
 Standard library only (runs anywhere, e.g. in python:3.12-alpine). One SQLite file is the whole state.
@@ -203,11 +206,19 @@ def llm_load() -> dict:
 
 
 def llm_save(cfg: dict) -> None:
-    tmp = LLM_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(cfg, fh, ensure_ascii=False)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, LLM_PATH)
+    # unique temp name per process+thread: settings blur + Test can save concurrently
+    tmp = f"{LLM_PATH}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, ensure_ascii=False)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, LLM_PATH)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
 def llm_public(cfg: dict) -> dict:

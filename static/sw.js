@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Michal Kohutek
+// SPDX-License-Identifier: GPL-3.0-only
+
 /* babylog service worker — network first (live data, fresh code), cache only as a fallback
    for the shell when the network is down. Served by the app at /sw.js so it can own "/". */
 const VERSION = "babylog-v42";

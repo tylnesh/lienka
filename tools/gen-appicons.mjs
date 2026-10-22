@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Michal Kohutek
+// SPDX-License-Identifier: GPL-3.0-only
+
 // Generates tools/appicon-preview-static.html + tools/appicon-candidates/*.svg
 // Run: node tools/gen-appicons.mjs   (output is fully static — no JavaScript needed to view)
 import fs from "node:fs";

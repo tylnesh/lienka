@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Michal Kohutek
+# SPDX-License-Identifier: GPL-3.0-only
+
 # Private CA + server certificate so family devices trust the baby log over HTTPS
 # without a public domain. Alternative: put Caddy/nginx in front with Let's Encrypt,
 # or reach the app through Tailscale/WireGuard (see README).

@@ -1,3 +1,6 @@
+/* SPDX-FileCopyrightText: 2026 Michal Kohutek
+   SPDX-License-Identifier: GPL-3.0-only */
+
 :root {
   --bg: #0e1116;
   --bg-grad: radial-gradient(1200px 600px at 80% -10%, #17222b 0%, #0e1116 55%);
@@ -249,8 +252,10 @@ main { max-width: 1180px; margin: 0 auto; padding: 14px 14px calc(var(--tabbar-h
 .seg { display: inline-flex; gap: 3px; padding: 3px; background: var(--surface-2);
   border: 1px solid var(--line-soft); border-radius: 11px; }
 .seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 11px;
-  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 550; }
+  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 550; white-space: nowrap; }
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 5px rgba(0,0,0,.2); }
+.setrow > .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.setrow > .seg::-webkit-scrollbar { display: none; }
 
 .chips { display: flex; gap: 7px; flex-wrap: wrap; }
 .flabel { font-size: 11.5px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; letter-spacing: .3px; }
@@ -365,10 +370,11 @@ dialog.sheet {
   box-shadow: var(--shadow);
 }
 dialog.sheet::backdrop { background: rgba(4, 8, 12, .62); backdrop-filter: blur(3px); }
-dialog.sheet form, dialog.sheet > div { display: flex; flex-direction: column; min-height: 0; }
+dialog.sheet form, dialog.sheet > div:not(.sheet-head) { display: flex; flex-direction: column; min-height: 0; }
 .sheet-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px;
   border-bottom: 1px solid var(--line-soft); position: relative; touch-action: none; }
-.sheet-head h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 9px; }
+.sheet-head h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 9px; min-width: 0; }
+.sheet-head .iconbtn { margin-left: auto; flex: none; }
 .sheet-head .qi { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
   background: color-mix(in srgb, var(--kc, var(--accent)) 16%, transparent); color: var(--kc, var(--accent)); }
 .sheet-grip { display: none; }
@@ -422,17 +428,30 @@ dialog.sheet form, dialog.sheet > div { display: flex; flex-direction: column; m
 .chkrow { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); cursor: pointer; }
 .chkrow input { width: 16px; height: 16px; accent-color: var(--accent); }
 .iconchips { display: flex; gap: 5px; flex-wrap: wrap; }
-.iconchips .icchip { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.iconchips .icchip { width: 40px; height: 40px; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
 .iconchips .icchip.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--surface-2); }
 .iconchips .icchip svg { width: 16px; height: 16px; }
-.quickadd { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.quickadd input { width: 120px; margin: 0; }
-.quickadd .seg { flex: none; }
-.qkmoves { display: inline-flex; gap: 2px; }
-.qkmoves .mini { padding: 3px 6px; }
-.llmcols { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.llmcols input { width: 100%; margin: 0; box-sizing: border-box; }
 .setrow .mini { white-space: nowrap; flex: none; }
+.mini.wide { font-size: 13.5px; gap: 6px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---------- grid editor (Today card tiles, groups, gaps) ---------- */
+.gridlist { border-top: 1px solid var(--line-soft); }
+.grow { display: flex; align-items: center; gap: 9px; padding: 5px 2px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); background: var(--surface); position: relative; }
+.grow.off .glabel { color: var(--muted); }
+.grow input[type="checkbox"] { width: 17px; height: 17px; flex: none; accent-color: var(--accent); }
+.grow .glabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.grow input.grpname { background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 7px 9px; font-size: 13.5px; width: 100%; max-width: 220px; min-width: 0; }
+.grow em { font-style: normal; font-size: 12px; color: var(--muted); background: var(--surface-2);
+  border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.grow.dragging { z-index: 6; margin: 0 -8px; padding-left: 10px; padding-right: 10px; border-radius: 12px;
+  background: var(--surface-2); border-color: transparent; box-shadow: var(--shadow); cursor: grabbing; }
+.grip { margin-left: auto; flex: none; width: 42px; height: 42px; display: grid; place-items: center;
+  border: 0; background: transparent; color: var(--muted); border-radius: 10px; cursor: grab; touch-action: none; }
+.grip:hover { background: var(--surface-2); color: var(--text); }
+.grip:active { cursor: grabbing; }
+.grip svg { stroke-width: 3.2; }
 @media (max-width: 480px) { .scaleslots { grid-template-columns: 1fr; } }
 .segfield { display: flex; gap: 6px; flex-wrap: wrap; }
 .segfield button {
@@ -525,16 +544,30 @@ dialog.sheet form, dialog.sheet > div { display: flex; flex-direction: column; m
 }
 .primary:active { transform: scale(.98); }
 .ghost { background: transparent; border: 1px solid var(--line); color: var(--muted);
-  border-radius: 12px; padding: 11px 16px; cursor: pointer; }
+  border-radius: 12px; padding: 11px 16px; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .ghost:hover { color: var(--text); }
 .danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
 .danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
 
-.setrow { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.setrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 13px 0;
+  border-bottom: 1px solid var(--line-soft); }
 .setrow:last-child { border-bottom: 0; }
-.setrow .lbl { display: flex; flex-direction: column; gap: 2px; }
+.setrow .lbl { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .setrow .lbl b { font-size: 14px; }
-.setrow .lbl small { color: var(--muted); font-size: 12px; }
+.setrow .lbl small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.setrow > :not(.lbl) { margin-left: auto; }
+/* wide controls (stacked field blocks, icon pickers…) drop below the label and span full width */
+.setrow > .full { margin-left: 0; flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; }
+.full > input, .full > select { width: 100%; min-width: 0; box-sizing: border-box;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 11px; padding: 11px 12px; }
+.fieldrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fieldrow > input, .fieldrow > select { flex: 1 1 220px; min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 11px; padding: 11px 12px; }
+.fieldrow > input:focus, .fieldrow > select:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .switch { margin-left: auto; width: 46px; height: 28px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--surface-3); position: relative; cursor: pointer; flex: none; }
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Michal Kohutek
+# SPDX-License-Identifier: GPL-3.0-only
+
 """Fill a baby.db with ~9 realistic newborn days for UI work / screenshots.
 
     DATA_DIR=/tmp/baby-test python3 tools/seed_demo.py [--open-timer]

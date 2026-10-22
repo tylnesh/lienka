@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Michal Kohutek
+// SPDX-License-Identifier: GPL-3.0-only
+
 // Layout checker: flags overflow, clipped buttons, clipped text and tabbar occlusion per view/device.
 import { createRequire } from "node:module";
 import path from "node:path";

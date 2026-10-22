@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Michal Kohutek
+// SPDX-License-Identifier: GPL-3.0-only
+
 /* baby-log PWA — views: today / log / stats / insights, entry editing in a modal sheet. */
 
 const API = { meta: "/api/meta", entries: "/api/entries", summary: "/api/summary", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
