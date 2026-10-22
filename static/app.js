@@ -31,6 +31,12 @@ const I18N = {
       milkDay: "~{dlo}–{dhi} ml/deň pri ~{f} kŕmeniach",
       infoAge: "Orientačné množstvo pre vek – v 1. týždni podľa objemu žalúdka, potom typické dávky. Nie je to cieľ: pri kojení sa riaďte signálmi dieťaťa (zdroje S119–S121 v registri).",
       infoWeight: "Výpočet z poslednej hmotnosti ({w} kg): 150–180 ml/kg/deň ÷ ~{f} kŕmení/deň. Odhad nie je cieľ – pri kojení sa riaďte dieťaťom; v rastových spurtoch (3./6. týždeň, 3./6. mesiac) je dočasne vyšší príjem normálny. Zdroje: Voedingscentrum NL + CZ ped. prax (S119/S120).",
+      guessTime: "≈ z minút", guessSw: "≈ z prehltov",
+      guessTimeTitle: "Odhad pri kojení, keď sa nedá vážiť: typická dávka pre tento vek (a hmotnosť) sa vypije za ~15 min aktívneho sania. Odhad ±30 % – váha je presnejšia.",
+      guessSwTitle: "Odhad z počtu počutých prehltov (~0,5–2 ml na prehlt podľa veku). Veľmi približné, ±50 %.",
+      needMin: "Najprv zadajte minúty sania.", needSw: "Najprv zadajte počet počutých prehltov.",
+      doneTime: "≈ {ml} ml = {min} min × ~{rate} ml/min (referencia pre vek/váhu) – odhad, nie meranie",
+      doneSw: "≈ {ml} ml = {n}× ~{mls} ml na prehlt – veľmi približný odhad",
     },
     scale: {
       title: "Dávka z váh (fotky)", titleManual: "Váženie pred/po (kg)",
@@ -259,6 +265,12 @@ const I18N = {
       milkDay: "~{dlo}–{dhi} ml/day at ~{f} feeds",
       infoAge: "Guideline for this age – week 1 follows stomach capacity, later typical feed sizes. Not a target: follow your baby's cues when breastfeeding (sources S119–S121 in the registry).",
       infoWeight: "From the latest weight ({w} kg): 150–180 ml/kg/day ÷ ~{f} feeds/day. A guide, not a target – follow baby's cues; intake temporarily spikes during growth spurts (weeks 3 & 6, months 3 & 6). Sources: Voedingscentrum NL + CZ paediatric practice (S119/S120).",
+      guessTime: "≈ from minutes", guessSw: "≈ from swallows",
+      guessTimeTitle: "No-scale breastfeeding estimate: a typical feed at this age (and weight) is drunk in ~15 min of active suckling. Rough ±30 % – weighing is more accurate.",
+      guessSwTitle: "Estimate from heard swallows (~0.5–2 ml per swallow depending on age). Very rough, ±50 %.",
+      needMin: "Enter the suckling minutes first.", needSw: "Enter how many swallows you heard first.",
+      doneTime: "≈ {ml} ml = {min} min × ~{rate} ml/min (age/weight reference) – estimate, not a measurement",
+      doneSw: "≈ {ml} ml = {n}× ~{mls} ml per swallow – very rough estimate",
     },
     scale: {
       title: "Feeding amount from scale photos", titleManual: "Before/after weigh-in (kg)",
@@ -2523,8 +2535,10 @@ function fillMilkHint(row, entry, atPreset) {
   row.append(hint);
   const stamp = (entry && entry.at) || atPreset || localInput(new Date());
   const ageDays = meta && meta.birth_date ? ageAtDate(meta.birth_date, String(stamp).slice(0, 10)) : null;
+  let latestR = null; // newest reference the paint() below has rendered (age- or weight-based)
   const paint = (r) => {
     if (!hint.isConnected || !r) return;
+    latestR = r;
     hint.textContent = t("hints.milk", { lo: r.perLo, hi: r.perHi });
     if (r.basis === "weight") hint.textContent += ` · ${t("hints.milkDay", { dlo: r.dayLo, dhi: r.dayHi, f: r.f })}`;
     hint.title = r.basis === "weight" ? t("hints.infoWeight", { w: fmtNum(Math.round(r.weightG / 100) / 10), f: r.f }) : t("hints.infoAge");
@@ -2542,6 +2556,50 @@ function fillMilkHint(row, entry, atPreset) {
     if (s && (!best || String(s.at) > String(best.at))) best = { at: s.at, value: s.scale_after_g };
     if (best) paint(milkRef(ageDays, best.value));
   });
+
+  /* No-scale guesstimates for breastfeeding: weighing before/after isn't always possible.
+     Minutes-based: the reference feed for this age/weight is drunk in ~15 min of active
+     suckling, so ml ≈ minutes × (ref midpoint / 15). Swallows-based: heard swallows ×
+     age-typical ml per swallow. Both fill the ml field as a clearly labelled suggestion —
+     never a measurement — and the user can still edit or ignore it. */
+  const GUESS_TYP_MIN = 15;
+  const SW_ML = [[7, 0.5], [60, 1], [Infinity, 2]]; // ml per swallow by age (rough literature midpoint)
+  const refNow = () => latestR || milkRef(ageDays === null ? 30 : ageDays, null);
+  const numIn = (name) => {
+    const grid = row.closest(".fieldgrid");
+    const el = grid && grid.querySelector(`input[name="${name}"]`);
+    const n = parseFloat(String(el && el.value || "").trim().replace(/\s+/g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const gNote = h("small", { class: "hint" });
+  const setMl = (ml) => {
+    const mlIn = row.querySelector('input[name="feed_ml"]');
+    if (!mlIn) return;
+    mlIn.value = String(ml);
+    mlIn.dispatchEvent(new Event("input", { bubbles: true })); // keep end_at/duration & scale tracking in sync
+  };
+  const guessFromMinutes = () => {
+    const mins = numIn("feed_minutes");
+    if (!mins) { gNote.textContent = t("hints.needMin"); return; }
+    const r = refNow();
+    const rate = (r.perLo + r.perHi) / 2 / GUESS_TYP_MIN;
+    const est = Math.min(Math.round(r.perHi * 1.5), Math.max(3, Math.round(Math.min(mins, 60) * rate)));
+    setMl(est);
+    gNote.textContent = t("hints.doneTime", { ml: est, min: fmtNum(mins), rate: fmtNum(Math.round(rate * 10) / 10) });
+  };
+  const guessFromSwallows = () => {
+    const n = Math.round(numIn("swallows"));
+    if (!n) { gNote.textContent = t("hints.needSw"); return; }
+    const mls = (SW_ML.find(([maxD]) => (ageDays === null ? 30 : ageDays) <= maxD) || [Infinity, 2])[1];
+    const r = refNow();
+    const est = Math.min(Math.round(r.perHi * 1.5), Math.max(3, Math.round(n * mls)));
+    setMl(est);
+    gNote.textContent = t("hints.doneSw", { ml: est, n, mls: fmtNum(mls) });
+  };
+  row.append(h("span", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px" },
+    h("button", { type: "button", class: "mini ghost", title: t("hints.guessTimeTitle"), onclick: guessFromMinutes }, t("hints.guessTime")),
+    h("button", { type: "button", class: "mini ghost", title: t("hints.guessSwTitle"), onclick: guessFromSwallows }, t("hints.guessSw")),
+    gNote));
 }
 
 /* ---------- scale photos: seven-segment display reader (on-device, best-effort) ----------
