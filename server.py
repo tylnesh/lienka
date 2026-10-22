@@ -177,6 +177,9 @@ def init_db() -> None:
 LLM_PATH = os.path.join(DATA, "llm.json")
 LLM_PROVIDERS = ("off", "openai", "anthropic", "custom")
 LLM_PRESET_BASES = {"openai": "https://api.openai.com/v1", "anthropic": "https://api.anthropic.com"}
+SCALE_PROMPT = ("The photo shows the digital display of a baby scale; the digits may be rotated sideways or upside down. "
+                "Read the number printed on the display (weight in kilograms, e.g. 3.973 or 0.385). "
+                "Reply with only that number. If no display is visible, reply: none")
 
 
 def llm_load() -> dict:
@@ -216,22 +219,43 @@ def llm_public(cfg: dict) -> dict:
 def llm_timeout(cfg: dict, kind: str) -> int:
     # local runtimes (Ollama et al) may spend minutes loading weights on first call
     base = (cfg.get("base_url") or LLM_PRESET_BASES.get(cfg["provider"], ""))
-    if "localhost" in base or "127.0.0.1" in base:
+    if any(h in base for h in ("localhost", "127.0.0.1", ".local", "192.168.", "10.", "172.16.", "172.17.")):
         return 150
     return 45 if kind == "test" else 90
 
 
-def llm_call(cfg: dict, messages: list, timeout: int = 75) -> str:
+def _anthropic_msg(m: dict) -> dict:
+    """OpenAI-style message -> Anthropic blocks (an image_url part becomes a base64 image source)."""
+    content = m.get("content")
+    if not isinstance(content, list):
+        return {"role": m["role"], "content": content}
+    blocks = []
+    for part in content:
+        if not isinstance(part, dict):
+            continue
+        if part.get("type") == "text":
+            blocks.append({"type": "text", "text": str(part.get("text", ""))})
+        elif part.get("type") == "image_url":
+            url = str((part.get("image_url") or {}).get("url", ""))
+            src = re.match(r"^data:(image/[a-z+]+);base64,([A-Za-z0-9+/=]+)$", url)
+            if src:
+                blocks.append({"type": "image", "source": {"type": "base64", "media_type": src.group(1), "data": src.group(2)}})
+    return {"role": m["role"], "content": blocks}
+
+
+def llm_call(cfg: dict, messages: list, timeout: int = 75, max_tokens: int = 0) -> str:
     model = cfg.get("model") or ""
     base = (cfg.get("base_url") or LLM_PRESET_BASES.get(cfg["provider"], "")).rstrip("/")
     if cfg["provider"] == "off" or not model or (cfg["provider"] != "anthropic" and not base):
         raise ValueError("not_configured")
+    mt = max_tokens or cfg["max_tokens"]
     key = cfg.get("api_key") or ""
     if cfg["provider"] == "anthropic":
         base = base or "https://api.anthropic.com"
-        system = "\n".join(m["content"] for m in messages if m["role"] == "system")
-        payload = {"model": model, "max_tokens": cfg["max_tokens"], "temperature": cfg["temperature"],
-                   "messages": [m for m in messages if m["role"] != "system"]}
+        system = "\n".join(str(m["content"]) for m in messages
+                           if m["role"] == "system" and isinstance(m.get("content"), str))
+        payload = {"model": model, "max_tokens": mt, "temperature": cfg["temperature"],
+                   "messages": [_anthropic_msg(m) for m in messages if m["role"] != "system"]}
         if system:
             payload["system"] = system
         req = Request(base + "/v1/messages", data=json.dumps(payload).encode(), method="POST",
@@ -240,7 +264,7 @@ def llm_call(cfg: dict, messages: list, timeout: int = 75) -> str:
             data = json.loads(resp.read(400_000).decode("utf-8"))
         blocks = data.get("content") or []
         return "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text").strip()
-    payload = {"model": model, "messages": messages, "max_tokens": cfg["max_tokens"], "temperature": cfg["temperature"]}
+    payload = {"model": model, "messages": messages, "max_tokens": mt, "temperature": cfg["temperature"]}
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = "Bearer " + key
@@ -277,11 +301,29 @@ def valid_day(text: str) -> bool:
         return False
 
 
+def _to_number(raw):
+    """Number from a form field: accepts dot or comma decimals ("36.5"/"36,5"),
+    spaces as thousand separators and EU mixed forms ("1.234,5"). Raises ValueError on junk."""
+    if isinstance(raw, bool):
+        raise ValueError("bool is not a number")
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    s = str(raw).strip().replace("\u00a0", "").replace(" ", "")
+    if "," in s and "." in s:  # the last separator is the decimal mark, the other one groups thousands
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    else:
+        s = s.replace(",", ".")
+    return float(s)
+
+
 def clean_int(raw, field: str, errors: dict, maximum: int = 100000):
     if raw in (None, ""):
         return None
     try:
-        value = int(float(raw))
+        value = int(_to_number(raw))
     except (TypeError, ValueError):
         errors[field] = "bad_number"
         return None
@@ -295,7 +337,7 @@ def clean_float(raw, field: str, errors: dict):
     if raw in (None, ""):
         return None
     try:
-        value = float(raw)
+        value = _to_number(raw)
     except (TypeError, ValueError):
         errors[field] = "bad_number"
         return None
@@ -1038,6 +1080,51 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:  # noqa: BLE001 - detection is best-effort
                 pass
             self._json(HTTPStatus.OK, {"found": found, "base_url": "http://localhost:11434/v1"})
+        elif path == "/api/llm/models":
+            # Pull the model list from an endpoint (body overrides take precedence over saved config),
+            # so the settings UI can offer a dropdown before anything is generated for the first time.
+            body, _ = self._read_json()
+            body = body if isinstance(body, dict) else {}
+            cfg = llm_load()
+            provider = body.get("provider")
+            if not isinstance(provider, str) or provider not in LLM_PROVIDERS:
+                provider = cfg["provider"]
+            base_in = body.get("base_url")
+            base = (base_in.strip() if isinstance(base_in, str) and base_in.strip() else cfg["base_url"]).strip().rstrip("/")[:200]
+            key_in = body.get("api_key")
+            key = key_in.strip()[:400] if isinstance(key_in, str) and key_in.strip() else (cfg.get("api_key") or "")
+
+            def pull(url: str, headers: dict) -> list:
+                with urlopen(Request(url, method="GET", headers=headers), timeout=12) as resp:
+                    data = json.loads(resp.read(600_000).decode("utf-8"))
+                items = data.get("data") if isinstance(data, dict) else None  # OpenAI-style {"data": [...]}
+                if not isinstance(items, list) and isinstance(data, dict):
+                    items = data.get("models")  # Ollama-style {"models": [...]}
+                out = []
+                for m in items or []:
+                    mid = (m.get("id") or m.get("name")) if isinstance(m, dict) else (m if isinstance(m, str) else None)
+                    if isinstance(mid, str) and mid and mid not in out:
+                        out.append(mid)
+                return out[:100]
+
+            models = []
+            error = ""
+            try:
+                if provider == "anthropic":
+                    models = pull((base or "https://api.anthropic.com") + "/v1/models",
+                                  {"x-api-key": key, "anthropic-version": "2023-06-01"})
+                else:
+                    if not base:
+                        raise ValueError("not_configured")
+                    models = pull(base + "/models", ({"Authorization": "Bearer " + key} if key else {}))
+                if not models and provider != "anthropic" and base.endswith("/v1"):
+                    try:  # Ollama exposes /api/tags at the root; some builds return an empty OpenAI list
+                        models = pull(base[:-3].rstrip("/") + "/api/tags", {})
+                    except Exception:  # noqa: BLE001 - fallback lookup is best-effort
+                        pass
+            except Exception as exc:  # noqa: BLE001 - surface connection errors to the settings UI
+                error = f"{type(exc).__name__}: {exc}"[:200]
+            self._json(HTTPStatus.OK, {"ok": not error, "models": models, "error": error})
         elif path == "/api/llm/chat":
             body, err = self._read_json(max_body=64_000)
             msgs_in = body.get("messages") if isinstance(body, dict) else None
@@ -1060,6 +1147,42 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"reply": reply[:6000]})
             except Exception as exc:  # noqa: BLE001
                 self._json(HTTPStatus.BAD_REQUEST, {"error": f"{type(exc).__name__}: {exc}"[:200]})
+        elif path == "/api/llm/scale":
+            # vision-model reading of a scale photo — the fallback when the phone's on-device
+            # seven-segment reader can't decode the display (client offers this only if an LLM is set up)
+            body, err = self._read_json(MAX_BODY_PHOTO)
+            if err:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": err})
+                return
+            image = str((body or {}).get("image") or "")
+            if not re.match(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$", image):
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "bad_image"})
+                return
+            cfg = llm_load()
+            if cfg["provider"] == "off" or not cfg.get("model"):
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "not_configured"})
+                return
+            msgs = [{"role": "user", "content": [
+                {"type": "text", "text": SCALE_PROMPT},
+                {"type": "image_url", "image_url": {"url": image}}]}]
+            try:
+                # thinking models burn most of the budget in reasoning_content before answering
+                reply = llm_call(cfg, msgs, timeout=llm_timeout(cfg, "chat"), max_tokens=1400)
+            except Exception as exc:  # noqa: BLE001
+                self._json(HTTPStatus.BAD_REQUEST, {"error": f"{type(exc).__name__}: {exc}"[:200]})
+                return
+            value = None
+            dec = re.search(r"\d{1,3}[.,]\d{1,3}", reply)
+            if dec:
+                value = float(dec.group(0).replace(",", "."))
+            else:
+                whole = re.search(r"\d+", reply)
+                if whole and not reply.lower().startswith("none"):
+                    v = float(whole.group(0))
+                    value = v / 1000 if v >= 50 else v  # gram-style display ("3973") -> kg
+            if value is not None and not (0.02 <= value <= 40):
+                value = None
+            self._json(HTTPStatus.OK, {"value": round(value, 3) if value is not None else None, "text": reply[:80]})
         elif path == "/api/tasks":
             body, err = self._read_json()
             if err:

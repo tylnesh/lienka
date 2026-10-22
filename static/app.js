@@ -1,6 +1,6 @@
 /* baby-log PWA — views: today / log / stats / insights, entry editing in a modal sheet. */
 
-const API = { meta: "/api/meta", entries: "/api/entries", summary: "/api/summary", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm" };
+const API = { meta: "/api/meta", entries: "/api/entries", summary: "/api/summary", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
 
 const I18N = {
   sk: {
@@ -33,6 +33,7 @@ const I18N = {
       before: "Pred kŕmením", after: "Po kŕmení",
       take: "Odfotiť", upload: "Nahrať",
       kg: "kg", auto: "prečítané z displeja", manual: "neprečítané – zadajte hodnotu ručne",
+      aiWait: "AI číta fotku…", autoAi: "prečítané z fotky (AI)",
       fromStash: "predtým nameraná hodnota", badKg: "Zadaj platnú hmotnosť – kg (6,24) alebo gramy (6240)",
       delta: "Vypila: +{g} g (~{ml} ml)", bad: "Rozdiel {g} g nedáva zmysel – skontrolujte hodnoty.",
       offer: "Chcete doplniť fotky z váh?", offerBtn: "Doplniť váhy",
@@ -120,11 +121,13 @@ const I18N = {
       anim: "Animácie", animSub: "Jemné prechody pri prepínaní a odozvách", animAuto: "Auto", animOn: "Zapnuté", animOff: "Vypnuté",
       scale: "Meranie z váh", scaleSub: "Fotku displeja váh odfotíš alebo nahráš z galérie. Hodnoty pred/po kŕmení vieme aj bez fotky – stačí zadať kg a mlieko sa dopočíta samo.", scalePhoto: "Foto + ručne", scaleManual: "Len ručne", scaleOff: "Vypnuté",
       sources: "Zdroje odporúčaní", sourcesSub: "Klikni, ktoré zdroje sa môžu citovať v Tipoch. Hranice hodnôt zostávajú najkonzervatívnejšie bez ohľadu na výber.", sourcesAll: "Zapnúť všetko",
-      qkTitle: "Rýchle záznamy", qkSub: "Zapni, skry alebo šipkami zmeň poradie dlaždíc na karte Dnes; pridaj aj liek či aktivitu na jeden klik.", qkAddSub: "Pridať dlaždicu na jeden klik", qkMedPh: "názov lieku", qkActPh: "názov aktivity", qkDosePh: "dávka (voliteľné)", qkAdd: "Pridať", qkDel: "Odstrániť", qkUp: "Posunúť hore", qkDown: "Posunúť dole", qkTypeMed: "liek", qkTypeAct: "aktivita",
+      qkTitle: "Rýchle záznamy", qkSub: "Uprav dlaždice, skupiny a medzery na karte Dnes; pridaj aj liek či aktivitu na jeden klik.", qkEdit: "Usporiadať", qkAddSub: "Pridať dlaždicu na jeden klik", qkMedPh: "názov lieku", qkActPh: "názov aktivity", qkDosePh: "dávka (voliteľné)", qkAdd: "Pridať", qkDel: "Odstrániť", qkUp: "Posunúť hore", qkDown: "Posunúť dole", qkTypeMed: "liek", qkTypeAct: "aktivita",
       qkPausable: "Pauzovatelná (spustí živý časovač)", qkGroups: "Skupiny a medzery",
-      qkGroupsSub: "Nadpis zhrúbia dlaždice do sekcie, medzera pridá prázdne políčko v mriežke. Poradie meníš šipkami.",
+      qkGroupsSub: "Nadpis zhrúbia dlaždice do sekcie, medzera pridá prázdne políčko v mriežke.",
       qkGroupPh: "názov skupiny (napr. Večer)", qkGroupAdd: "Pridať skupinu", qkGapAdd: "Pridať medzeru", qkGap: "Prázdne miesto",
-      llm: "AI asistent", llmSub: "Voliteľné. OpenAI, Anthropic alebo akékoľvek OpenAI-kompatibilné API – napr. lokálny Ollama snap.", llmOff: "Vypnutý", llmCustom: "Vlastné URL", llmModelPh: "model (napr. qwen3.5:4b)", llmKeyKeep: "•••••••• (prázdne = nezmeniť)", llmKeyPh: "API kľúč", llmTest: "Test", llmTesting: "Testujem…", llmTestOk: "✓ Odpoveď:", llmTestFail: "✗ Test zlyhal:", llmDetect: "Nájsť lokálny model", llmDetected: "Nájdených modelov: {n} – vyber v poli Model", llmNone: "Lokálny Ollama nenájdený", llmSaveFail: "Uloženie zlyhalo", llmNote: "Kľúč ostáva na serveri (súbor 0600). Tipy sú aj naďalej deterministické – AI sa volá len po nastavení.",
+      gridTitle: "Poradie na karte Dnes", gridSub: "Zaškrtni, ktoré dlaždice sa zobrazujú. Poradie meníš ťahaním za úchytku; na klávesnici úchytku zameraj a stlač ↑ alebo ↓.", qkDrag: "Uchytiť a presunúť",
+      llm: "AI asistent", llmSub: "Voliteľné. OpenAI, Anthropic alebo akékoľvek OpenAI-kompatibilné API – napr. lokálny Ollama snap.", llmOff: "Vypnutý", llmCustom: "Vlastné URL", llmModelPh: "alebo zadaj názov modelu ručne", llmKeyKeep: "•••••••• (prázdne = nezmeniť)", llmKeyPh: "API kľúč", llmTest: "Test", llmTesting: "Testujem…", llmTestOk: "✓ Odpoveď:", llmTestFail: "✗ Test zlyhal:", llmDetect: "Nájsť lokálny Ollama", llmDetected: "Nájdených modelov: {n} – vyber v menu Model", llmNone: "Lokálny Ollama nenájdený", llmSaveFail: "Uloženie zlyhalo", llmNote: "Kľúč ostáva na serveri (súbor 0600). Tipy sú aj naďalej deterministické – AI sa volá len po nastavení.",
+      llmSetup: "AI endpoint", llmSteps: "Zadaj adresu a stlač Test – overíme, že endpoint odpovedá, a stiahneme zoznam modelov do menu.", llmPick: "– najprv otestuj adresu –", llmModelsOk: "✓ {n} modelov načítaných z endpointu", llmNoModels: "Endpoint odpovedá, ale nevrátil žiadne modely – názov zapíš ručne.",
       remind: "Pripomienka kŕmenia", remindSub: "Upozorní, keď je kŕmenie dlho bez záznamu",
       trends: "Trendy", trendsSub: "Automaticky vynechá nepresné dni z trendov (napr. prvý deň sme začali večer).",
       trendAuto: "Auto", trendAll: "Všetky",
@@ -257,6 +260,7 @@ const I18N = {
       before: "Before feed", after: "After feed",
       take: "Take photo", upload: "Upload",
       kg: "kg", auto: "read from display", manual: "couldn't read – enter value manually",
+      aiWait: "AI is reading the photo…", autoAi: "read from photo (AI)",
       fromStash: "previously measured value", badKg: "Enter a valid weight – kg (6.24) or grams (6240)",
       delta: "Drank: +{g} g (~{ml} ml)", bad: "Difference {g} g makes no sense – check the values.",
       offer: "Add scale photos?", offerBtn: "Add scale",
@@ -343,11 +347,13 @@ const I18N = {
       anim: "Animations", animSub: "Gentle transitions when navigating and acting", animAuto: "Auto", animOn: "On", animOff: "Off",
       scale: "Scale weigh-ins", scaleSub: "Take a photo of the scale display or upload one from your gallery. Before/after weights work without photos too – enter the kg and the milk amount is computed for you.", scalePhoto: "Photo + manual", scaleManual: "Manual only", scaleOff: "Off",
       sources: "Recommendation sources", sourcesSub: "Choose which sources may be cited in Tips. Thresholds stay the most conservative regardless of selection.", sourcesAll: "Enable all",
-      qkTitle: "Quick log shortcuts", qkSub: "Toggle and reorder the tiles on the Today card with the arrows; add one-tap medications or activities.", qkAddSub: "Add a one-tap tile", qkMedPh: "medication name", qkActPh: "activity name", qkDosePh: "dose (optional)", qkAdd: "Add", qkDel: "Delete", qkUp: "Move up", qkDown: "Move down", qkTypeMed: "med", qkTypeAct: "activity",
+      qkTitle: "Quick log shortcuts", qkSub: "Edit the tiles, groups and gaps of the Today card; add one-tap medications or activities.", qkEdit: "Arrange", qkAddSub: "Add a one-tap tile", qkMedPh: "medication name", qkActPh: "activity name", qkDosePh: "dose (optional)", qkAdd: "Add", qkDel: "Delete", qkUp: "Move up", qkDown: "Move down", qkTypeMed: "med", qkTypeAct: "activity",
       qkPausable: "Pausable (starts a live timer)", qkGroups: "Groups and gaps",
-      qkGroupsSub: "A heading huddles tiles into a section, a gap adds an empty cell in the grid. Reorder with the arrows.",
+      qkGroupsSub: "A heading huddles tiles into a section; a gap adds an empty cell in the grid.",
       qkGroupPh: "group name (e.g. Evening)", qkGroupAdd: "Add group", qkGapAdd: "Add gap", qkGap: "Empty space",
-      llm: "AI assistant", llmSub: "Optional. OpenAI, Anthropic or any OpenAI-compatible API – e.g. a local Ollama snap.", llmOff: "Off", llmCustom: "Custom URL", llmModelPh: "model (e.g. qwen3.5:4b)", llmKeyKeep: "•••••••• (empty = keep)", llmKeyPh: "API key", llmTest: "Test", llmTesting: "Testing…", llmTestOk: "✓ Reply:", llmTestFail: "✗ Test failed:", llmDetect: "Detect local model", llmDetected: "Found {n} model(s) – pick in the Model field", llmNone: "Local Ollama not found", llmSaveFail: "Save failed", llmNote: "The key stays on the server (0600 file). Tips stay deterministic – AI is only called once configured.",
+      gridTitle: "Today card layout", gridSub: "Toggle which tiles appear. Drag the handle to reorder; or focus the handle and press ↑ / ↓.", qkDrag: "Grab and move",
+      llm: "AI assistant", llmSub: "Optional. OpenAI, Anthropic or any OpenAI-compatible API – e.g. a local Ollama snap.", llmOff: "Off", llmCustom: "Custom URL", llmModelPh: "or type a model name manually", llmKeyKeep: "•••••••• (empty = keep)", llmKeyPh: "API key", llmTest: "Test", llmTesting: "Testing…", llmTestOk: "✓ Reply:", llmTestFail: "✗ Test failed:", llmDetect: "Detect local Ollama", llmDetected: "Found {n} model(s) – pick one in the Model dropdown", llmNone: "Local Ollama not found", llmSaveFail: "Save failed", llmNote: "The key stays on the server (0600 file). Tips stay deterministic – AI is only called once configured.",
+      llmSetup: "AI endpoint", llmSteps: "Enter the address and hit Test – we check the endpoint answers and load its model list into the dropdown.", llmPick: "– test the address first –", llmModelsOk: "✓ Loaded {n} models from the endpoint", llmNoModels: "Endpoint answered but listed no models – type the name manually.",
       remind: "Feed reminder", remindSub: "Alerts when a feed has not been logged for a while",
       trends: "Trends", trendsSub: "Automatically removes unreliable days from trends (e.g. first day started in the evening).",
       trendAuto: "Auto", trendAll: "All",
@@ -492,6 +498,7 @@ const PATHS = {
   eye: "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 14.8a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6z",
   camera: "M9 5.8h1.7l1-1.8h2.6l1 1.8H18a1.6 1.6 0 0 1 1.6 1.6v9.7A1.6 1.6 0 0 1 18 18.7H6a1.6 1.6 0 0 1-1.6-1.6V7.4A1.6 1.6 0 0 1 6 5.8zM12 16.6a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6z",
   upload: "M12 15.5v-11M7.5 8.5l4.5-4.5 4.5 4.5M4.5 20.5h15",
+  grip: "M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01",
 };
 
 const KIND_ICONS = { diaper: "diaper", feed: "bottle", sleep: "moon", walk: "walk", bath: "bath", medication: "pill", activity: "star", task: "bell", measure: "scale", note: "note" };
@@ -2769,6 +2776,20 @@ function buildScaleSection(entry, feedMlHolder) {
       // two pickers: capture opens the camera directly, the plain one the gallery/file chooser
       fileCam = h("input", { type: "file", accept: "image/*", capture: "environment", class: "hidden" });
       fileUp = h("input", { type: "file", accept: "image/*", class: "hidden" });
+      // When the built-in seven-segment reader fails, ask the configured vision model via the server.
+      // Only offered when Settings → AI assistant is set up; the field stays editable either way.
+      const llmReady = () => llmCfg && llmCfg.provider !== "off" && llmCfg.model;
+      const aiRead = async (dataUrl, restoreTo) => {
+        note.textContent = t("scale.aiWait");
+        try {
+          const d = await api(API.llmScale, { method: "POST", body: JSON.stringify({ image: dataUrl }) });
+          if (!kg.isConnected) return; // dialog closed meanwhile
+          if (d && Number.isFinite(d.value)) {
+            kg.value = fmtKg(d.value); state[key].g = Math.round(d.value * 1000); kg.classList.remove("bad-in");
+            note.textContent = t("scale.autoAi");
+          } else note.textContent = restoreTo;
+        } catch { if (kg.isConnected) note.textContent = restoreTo; }
+      };
       const handle = async (f) => {
         if (!f) return;
         note.textContent = "…";
@@ -2778,8 +2799,11 @@ function buildScaleSection(entry, feedMlHolder) {
           img.src = dataUrl; img.classList.remove("hidden");
           const r = await readScaleImage(dataUrl);
           if (r && r.value) { kg.value = fmtKg(r.value); state[key].g = Math.round(r.value * 1000); kg.classList.remove("bad-in"); note.textContent = `${t("scale.auto")} · ${Math.round((r.confidence || 0.5) * 100)} %`; }
-          else if (r && r.text) note.textContent = `„${r.text}" — ${t("scale.manual")}`;
-          else note.textContent = t("scale.manual");
+          else {
+            const fail = r && r.text ? `„${r.text}" — ${t("scale.manual")}` : t("scale.manual");
+            note.textContent = fail;
+            if (llmReady()) await aiRead(dataUrl, fail);
+          }
         } catch { note.textContent = t("scale.manual"); }
         update();
       };
@@ -3515,8 +3539,11 @@ function openEntryDialog(kind, entry = null, atPreset = null) {
       field.type = "text"; field.inputMode = "decimal"; field.name = spec.name;
       const plus = h("button", { type: "button", html: "+" });
       const step = spec.step || 1;
-      minus.addEventListener("click", () => { field.value = String(Math.max(0, (parseFloat(field.value) || 0) - step)); field.dispatchEvent(new Event("input", { bubbles: true })); });
-      plus.addEventListener("click", () => { field.value = String(Math.round(((parseFloat(field.value) || 0) + step) * 10) / 10); field.dispatchEvent(new Event("input", { bubbles: true })); });
+      // comma-tolerant: plain parseFloat would silently stop at the comma ("36,3" -> 36)
+      const curVal = () => { const n = parseFloat(String(field.value).trim().replace(/\s+/g, "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+      const setVal = (n) => { field.value = String(Math.round(n * 10) / 10).replace(".", String(field.value).includes(",") ? "," : "."); };
+      minus.addEventListener("click", () => { setVal(Math.max(0, curVal() - step)); field.dispatchEvent(new Event("input", { bubbles: true })); });
+      plus.addEventListener("click", () => { setVal(curVal() + step); field.dispatchEvent(new Event("input", { bubbles: true })); });
       input.append(minus, field, plus);
     } else if (spec.type === "datetime") {
       input = document.createElement("div");
@@ -3677,7 +3704,9 @@ function openEntryDialog(kind, entry = null, atPreset = null) {
 function readFieldValue(holder) {
   const { spec, input } = holder;
   if (spec.type === "seg") return input.dataset.value || "";
-  if (spec.type === "stepper") return input.querySelector("input").value.trim();
+  // numeric stepper fields accept a decimal comma; send the dot form (server is tolerant too,
+  // this keeps hints, duration math and the offline queue consistent)
+  if (spec.type === "stepper") return input.querySelector("input").value.trim().replace(/\s+/g, "").replace(",", ".");
   if (spec.type === "datetime") return combineLocal(input._date.value, input._time.value);
   return input.value.trim();
 }
@@ -3761,12 +3790,12 @@ function submitEntry(event) {
 }
 
 function syncModalLock() {
-  const anyOpen = ["entryDialog", "settingsDialog", "listDialog", "ackDialog", "taskDialog", "taskEditDialog"].some((id) => $(id).open);
+  const anyOpen = ["entryDialog", "settingsDialog", "gridDialog", "listDialog", "ackDialog", "taskDialog", "taskEditDialog"].some((id) => $(id).open);
   if (!anyOpen) document.body.classList.remove("modal-open");
 }
 
 function openSheet(dialog) {
-  dialog.showModal();
+  if (!dialog.open) dialog.showModal();
   document.body.classList.add("modal-open");
 }
 
@@ -3865,131 +3894,28 @@ function openSettings() {
       (v) => { localStorage.setItem("baby.scaleMode", v); openSettings(); })
   ));
 
-  const qoffs = qOff();
   body.append(h("div", { class: "setrow" },
     h("span", { class: "lbl" }, h("b", {}, t("settings.qkTitle")), h("small", {}, t("settings.qkSub"))),
-    qoffs.length ? h("button", { type: "button", class: "mini ghost", onclick: () => { localStorage.setItem("baby.quickOff", "[]"); openSettings(); renderToday(); } }, t("settings.sourcesAll")) : null
-  ));
-  const moveQuick = (id, dir) => {
-    const order = quickOrder();
-    const i = order.indexOf(id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= order.length) return;
-    [order[i], order[j]] = [order[j], order[i]];
-    localStorage.setItem("baby.quickOrder", JSON.stringify(order));
-    openSettings(); renderToday();
-  };
-  const dropQuick = (id) => {
-    localStorage.setItem("baby.quickOrder", JSON.stringify(quickOrder().filter((x) => x !== id)));
-    if (isQGrp(id)) saveQuickGroups(quickGroups().filter((g) => `g:${g.uid}` !== id));
-    else if (!id.includes(":")) saveQuickDefs(quickDefs().filter((x) => x.uid !== id));
-    openSettings(); renderToday();
-  };
-  for (const id of quickOrder()) {
-    const on = qOn(id);
-    const isCustom = !id.includes(":");
-    const special = isQGap(id) || isQGrp(id);
-    const flip = () => {
-      const cur = qOff();
-      if (cur.includes(id)) cur.splice(cur.indexOf(id), 1); else cur.push(id);
-      localStorage.setItem("baby.quickOff", JSON.stringify(cur));
-      openSettings(); renderToday();
-    };
-    const labelKid = isQGrp(id)
-      ? h("input", { class: "qgrp", type: "text", maxlength: "24", value: qLabel(id), "aria-label": t("settings.qkGroupPh"),
-          onchange: (ev) => {
-            const gs = quickGroups();
-            const g = gs.find((x) => `g:${x.uid}` === id);
-            if (g) { g.name = ev.currentTarget.value.trim(); saveQuickGroups(gs); }
-            openSettings(); renderToday();
-          } })
-      : h("span", { onclick: flip }, qLabel(id));
-    body.append(h("div", { class: "srcrow" + (on ? "" : " off") + (isQGrp(id) ? " grp" : "") },
-      h("input", { type: "checkbox", checked: on, onchange: flip }),
-      labelKid,
-      isCustom || special ? h("button", { type: "button", class: "mini ghost", title: t("settings.qkDel"), "aria-label": t("settings.qkDel"), onclick: () => dropQuick(id), html: icon("x", "sm") }) : null,
-      h("span", { class: "qkmoves" },
-        h("button", { type: "button", class: "mini ghost", title: t("settings.qkUp"), onclick: () => moveQuick(id, -1), html: icon("caretUp", "sm") }),
-        h("button", { type: "button", class: "mini ghost", title: t("settings.qkDown"), onclick: () => moveQuick(id, 1), html: icon("caretDown", "sm") })
-      ),
-      qPill(id) ? h("em", {}, qPill(id)) : null
-    ));
-  }
-  const grpName = h("input", { type: "text", maxlength: "24", placeholder: t("settings.qkGroupPh") });
-  body.append(h("div", { class: "setrow" },
-    h("span", { class: "lbl" }, h("b", {}, t("settings.qkGroups")), h("small", {}, t("settings.qkGroupsSub"))),
-    h("div", { class: "quickadd" }, grpName,
-      h("button", { type: "button", class: "mini ghost", onclick: () => {
-        const name = grpName.value.trim();
-        if (!name) return;
-        const uid = newQuickUid();
-        saveQuickGroups([...quickGroups(), { uid, name }]);
-        const o = quickOrder();
-        o.push(`g:${uid}`);
-        localStorage.setItem("baby.quickOrder", JSON.stringify(o));
-        openSettings(); renderToday();
-      } }, t("settings.qkGroupAdd")),
-      h("button", { type: "button", class: "mini ghost", onclick: () => {
-        const o = quickOrder();
-        o.push(`sp:${newQuickUid()}`);
-        localStorage.setItem("baby.quickOrder", JSON.stringify(o));
-        openSettings(); renderToday();
-      } }, t("settings.qkGapAdd")))
-  ));
-  let qType = "med";
-  let qIcon = "";
-  let qPausable = false;
-  const medName = h("input", { type: "text", placeholder: t("settings.qkMedPh"), maxlength: "40" });
-  const medDose = h("input", { type: "text", placeholder: t("settings.qkDosePh"), maxlength: "20" });
-  const pauseChk = h("input", { type: "checkbox", onchange: () => { qPausable = pauseChk.checked; } });
-  const pauseWrap = h("label", { class: "chkrow hidden" }, pauseChk, h("span", {}, t("settings.qkPausable")));
-  const Q_ICON_CHOICES = ["star", "heart", "sun", "moon", "walk", "bath", "bottle", "pill", "note", "clock"];
-  const iconRow = h("div", { class: "iconchips" }, ...Q_ICON_CHOICES.map((ic) => h("button", {
-    type: "button", class: "icchip", "data-quick-icon": ic, title: ic, html: icon(ic, "sm"),
-    onclick: () => {
-      qIcon = qIcon === ic ? "" : ic;
-      iconRow.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.getAttribute("data-quick-icon") === qIcon));
-    },
-  })));
-  const typeSeg = h("div", { class: "seg" },
-    h("button", { type: "button", class: "on", onclick: (ev) => { qType = "med"; setTypeBtn(ev.currentTarget); medDose.disabled = false; } }, t("settings.qkTypeMed")),
-    h("button", { type: "button", onclick: (ev) => { qType = "act"; setTypeBtn(ev.currentTarget); medDose.disabled = true; } }, t("settings.qkTypeAct"))
-  );
-  const setTypeBtn = (btn) => {
-    typeSeg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
-    medName.placeholder = t(qType === "med" ? "settings.qkMedPh" : "settings.qkActPh");
-    pauseWrap.classList.toggle("hidden", qType !== "act");
-  };
-  body.append(h("div", { class: "setrow" },
-    h("span", { class: "lbl" }, h("small", {}, t("settings.qkAddSub"))),
-    h("div", { class: "quickadd" }, typeSeg, medName, medDose, pauseWrap, iconRow, h("button", { type: "button", class: "mini", onclick: () => {
-      const name = medName.value.trim();
-      if (!name) return;
-      const list = quickDefs();
-      const def = { uid: newQuickUid(), type: qType, name, dose: qType === "med" ? medDose.value.trim() : "" };
-      if (qIcon) def.icon = qIcon;
-      if (qType === "act" && qPausable) def.pausable = true;
-      list.push(def);
-      saveQuickDefs(list);
-      openSettings(); renderToday();
-    } }, t("settings.qkAdd")))
+    h("button", { type: "button", class: "mini ghost wide", onclick: openGridEditor }, t("settings.qkEdit"))
   ));
 
   const srcOffs = srcOffList();
   body.append(h("div", { class: "setrow" },
     h("span", { class: "lbl" }, h("b", {}, t("settings.sources")), h("small", {}, t("settings.sourcesSub"))),
-    srcOffs.length ? h("button", { type: "button", class: "mini ghost", onclick: () => { localStorage.setItem("baby.srcOff", "[]"); openSettings(); refresh().catch(() => {}); } }, t("settings.sourcesAll")) : null
+    srcOffs.length ? h("button", { type: "button", class: "mini ghost wide", onclick: () => { localStorage.setItem("baby.srcOff", "[]"); openSettings(); refresh().catch(() => {}); } }, t("settings.sourcesAll")) : null
   ));
   for (const id of Object.keys(SOURCES)) {
     const on = srcOn(id);
-    body.append(h("label", { class: "srcrow" + (on ? "" : " off") },
-      h("input", { type: "checkbox", checked: on, onchange: () => {
+    const cb = h("input", { type: "checkbox", onchange: () => {
         const cur = srcOffList();
         if (on) cur.push(id);
         else { const i = cur.indexOf(id); if (i >= 0) cur.splice(i, 1); }
         localStorage.setItem("baby.srcOff", JSON.stringify(cur));
         openSettings(); refresh().catch(() => {});
-      } }),
+      } });
+    cb.checked = on;
+    body.append(h("label", { class: "srcrow" + (on ? "" : " off") },
+      cb,
       h("span", {}, `${id} · ${t(SOURCES[id].label)}`),
       h("em", {}, SOURCES[id].region)
     ));
@@ -3999,42 +3925,12 @@ function openSettings() {
   body.append(h("div", { class: "setrow" },
     h("span", { class: "lbl" }, h("b", {}, t("settings.llm")), h("small", {}, t("settings.llmSub"))),
     seg([["off", t("settings.llmOff")], ["openai", "OpenAI"], ["anthropic", "Anthropic"], ["custom", t("settings.llmCustom")]], llmCur.provider,
-      async (v) => { if (await saveLlm({ provider: v })) openSettings(); })
+      async (v) => {
+        try { const d = await api(API.llm, { method: "POST", body: JSON.stringify({ provider: v }) }); llmCfg = d.llm; openSettings(); }
+        catch { /* offline: keep current view */ }
+      })
   ));
-  const llmStatus = h("small", { class: "hint" });
-  const llmBase = h("input", { type: "text", placeholder: "https://…/v1", value: llmCur.base_url || "", onchange: () => saveLlm({}) });
-  const llmModel = h("input", { type: "text", placeholder: t("settings.llmModelPh"), value: llmCur.model || "", list: "llmModels", onchange: () => saveLlm({}) });
-  const llmModels = h("datalist", { id: "llmModels" });
-  const llmKey = h("input", { type: "password", autocomplete: "new-password", placeholder: llmCur.has_key ? t("settings.llmKeyKeep") : t("settings.llmKeyPh"), onchange: () => saveLlm({}) });
-  async function saveLlm(extra) {
-    const patch = Object.assign({ provider: (llmCfg || { provider: "off" }).provider, base_url: llmBase.value.trim(), model: llmModel.value.trim() }, extra);
-    if (llmKey.value) { patch.api_key = llmKey.value; llmKey.value = ""; }
-    try { const d = await api(API.llm, { method: "POST", body: JSON.stringify(patch) }); llmCfg = d.llm; llmStatus.textContent = ""; return true; }
-    catch { llmStatus.textContent = t("settings.llmSaveFail"); return false; }
-  }
-  body.append(h("div", { class: "setrow" },
-    h("span", { class: "lbl" }, h("small", {}, t("settings.llmNote"))),
-    h("div", { class: "llmcols" }, llmBase, llmModel, llmModels, llmKey,
-      h("div", { class: "quickadd" },
-        h("button", { type: "button", class: "mini", onclick: async () => {
-          llmStatus.textContent = t("settings.llmTesting");
-          try {
-            const d = await api(`${API.llm}/test`, { method: "POST", body: "{}" });
-            llmStatus.textContent = d.ok ? `${t("settings.llmTestOk")} ${d.reply} (${d.ms} ms)` : `${t("settings.llmTestFail")} ${d.error}`;
-          } catch (e) { llmStatus.textContent = `${t("settings.llmTestFail")} ${e.message}`; }
-        } }, t("settings.llmTest")),
-        h("button", { type: "button", class: "mini ghost", onclick: async () => {
-          llmStatus.textContent = t("settings.llmTesting");
-          const d = await api(`${API.llm}/detect`, { method: "POST", body: "{}" }).catch(() => null);
-          if (!d || !d.found.length) { llmStatus.textContent = t("settings.llmNone"); return; }
-          llmBase.value = d.base_url;
-          llmModels.append(...d.found.map((m) => h("option", { value: m })));
-          if (!llmModel.value) llmModel.value = d.found[0];
-          await saveLlm({});
-          llmStatus.textContent = t("settings.llmDetected", { n: d.found.length });
-        } }, t("settings.llmDetect"))),
-      llmStatus)
-  ));
+  if (llmCur.provider !== "off") body.append(llmSetupRow());
 
   const trendFilter = trendFilterSetting();
   body.append(h("div", { class: "setrow" },
@@ -4101,6 +3997,251 @@ function openSettings() {
   ));
 
   openSheet($("settingsDialog"));
+}
+
+/* ---------- Today-card grid editor (tiles, groups, gaps) ---------- */
+
+// Pointer-based sortable rows (mouse + touch). Rows carry data-id; the final order
+// is read from the DOM on drop. Keyboard: grip buttons handle ↑/↓ themselves.
+function makeSortable(list, onReorder) {
+  let drag = null, pid = null, anchorY = 0;
+  const rows = () => Array.prototype.slice.call(list.children).filter((el) => el.dataset.id);
+  list.addEventListener("pointerdown", (e) => {
+    const handle = e.target.closest("[data-drag]");
+    if (!handle || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const row = handle.closest(".grow");
+    if (!row || row.parentElement !== list) return;
+    drag = row; pid = e.pointerId; anchorY = e.clientY;
+    row.classList.add("dragging");
+    handle.setPointerCapture(pid);
+    e.preventDefault();
+  });
+  list.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== pid) return;
+    const dy = e.clientY - anchorY;
+    drag.style.transform = `translateY(${dy}px)`;
+    let ref = null; // first row whose midpoint sits below the pointer → insert before it
+    for (const el of rows()) {
+      if (el === drag) continue;
+      const r = el.getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) { ref = el; break; }
+    }
+    if (ref !== drag.nextElementSibling) {
+      const beforeTop = drag.getBoundingClientRect().top - dy;
+      list.insertBefore(drag, ref);
+      anchorY += (drag.getBoundingClientRect().top - dy) - beforeTop; // keep the row pinned under the pointer
+      drag.style.transform = `translateY(${e.clientY - anchorY}px)`;
+    }
+  });
+  const end = (e) => {
+    if (!drag || e.pointerId !== pid) return;
+    drag.classList.remove("dragging");
+    drag.style.transform = "";
+    drag = null; pid = null;
+    onReorder(rows().map((el) => el.dataset.id));
+  };
+  list.addEventListener("pointerup", end);
+  list.addEventListener("pointercancel", end);
+}
+
+function openGridEditor() {
+  $("gridTitle").textContent = t("settings.gridTitle");
+  $("gridClose").innerHTML = icon("x", "sm");
+  const body = $("gridBody");
+  body.innerHTML = "";
+  body.append(h("p", { class: "hint" }, t("settings.gridSub")));
+
+  const moveQuick = (id, dir) => {
+    const order = quickOrder();
+    const i = order.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    localStorage.setItem("baby.quickOrder", JSON.stringify(order));
+    openGridEditor(); renderToday();
+  };
+  const dropQuick = (id) => {
+    localStorage.setItem("baby.quickOrder", JSON.stringify(quickOrder().filter((x) => x !== id)));
+    if (isQGrp(id)) saveQuickGroups(quickGroups().filter((g) => `g:${g.uid}` !== id));
+    else if (!id.includes(":")) saveQuickDefs(quickDefs().filter((x) => x.uid !== id));
+    openGridEditor(); renderToday();
+  };
+
+  const listWrap = h("div", { class: "gridlist" });
+  for (const id of quickOrder()) {
+    const on = qOn(id);
+    const isCustom = !id.includes(":");
+    const special = isQGap(id) || isQGrp(id);
+    const flip = () => {
+      const cur = qOff();
+      if (cur.includes(id)) cur.splice(cur.indexOf(id), 1); else cur.push(id);
+      localStorage.setItem("baby.quickOff", JSON.stringify(cur));
+      openGridEditor(); renderToday();
+    };
+    const cb = h("input", { type: "checkbox", "aria-label": qLabel(id), onchange: flip });
+    cb.checked = on;
+    const labelKid = isQGrp(id)
+      ? h("input", { class: "grpname", type: "text", maxlength: "24", value: qLabel(id), "aria-label": t("settings.qkGroupPh"),
+          onchange: (ev) => {
+            const gs = quickGroups();
+            const g = gs.find((x) => `g:${x.uid}` === id);
+            if (g) { g.name = ev.currentTarget.value.trim(); saveQuickGroups(gs); }
+            openGridEditor(); renderToday();
+          } })
+      : h("span", { class: "glabel", onclick: flip }, qLabel(id));
+    listWrap.append(h("div", { class: "grow" + (on ? "" : " off") + (isQGrp(id) ? " grp" : ""), "data-id": id },
+      cb,
+      labelKid,
+      qPill(id) ? h("em", {}, qPill(id)) : null,
+      h("button", { type: "button", class: "grip", "data-drag": "1", title: t("settings.qkDrag"), "aria-label": t("settings.qkDrag"), html: icon("grip", "sm"),
+        onkeydown: (e) => {
+          if (e.key === "ArrowUp") { e.preventDefault(); moveQuick(id, -1); }
+          else if (e.key === "ArrowDown") { e.preventDefault(); moveQuick(id, 1); }
+        } }),
+      isCustom || special ? h("button", { type: "button", class: "mini ghost", title: t("settings.qkDel"), "aria-label": t("settings.qkDel"), onclick: () => dropQuick(id), html: icon("x", "sm") }) : null
+    ));
+  }
+  body.append(listWrap);
+  makeSortable(listWrap, (ids) => {
+    localStorage.setItem("baby.quickOrder", JSON.stringify(ids));
+    renderToday();
+  });
+
+  if (qOff().length) body.append(h("div", { class: "rowbtns" },
+    h("button", { type: "button", class: "mini ghost wide", onclick: () => { localStorage.setItem("baby.quickOff", "[]"); openGridEditor(); renderToday(); } }, t("settings.sourcesAll"))));
+
+  body.append(h("p", { class: "flabel" }, t("settings.qkGroups")), h("p", { class: "hint" }, t("settings.qkGroupsSub")));
+  const grpName = h("input", { type: "text", maxlength: "24", placeholder: t("settings.qkGroupPh"), "aria-label": t("settings.qkGroupPh") });
+  body.append(h("div", { class: "fieldrow" }, grpName,
+    h("button", { type: "button", class: "btn ghost", onclick: () => {
+      const name = grpName.value.trim();
+      if (!name) return;
+      const uid = newQuickUid();
+      saveQuickGroups([...quickGroups(), { uid, name }]);
+      const o = quickOrder();
+      o.push(`g:${uid}`);
+      localStorage.setItem("baby.quickOrder", JSON.stringify(o));
+      openGridEditor(); renderToday();
+    } }, t("settings.qkGroupAdd")),
+    h("button", { type: "button", class: "btn ghost", onclick: () => {
+      const o = quickOrder();
+      o.push(`sp:${newQuickUid()}`);
+      localStorage.setItem("baby.quickOrder", JSON.stringify(o));
+      openGridEditor(); renderToday();
+    } }, t("settings.qkGapAdd"))));
+
+  body.append(h("p", { class: "flabel" }, t("settings.qkAddSub")));
+  let qType = "med";
+  let qIcon = "";
+  let qPausable = false;
+  const medName = h("input", { type: "text", placeholder: t("settings.qkMedPh"), maxlength: "40" });
+  const medDose = h("input", { type: "text", placeholder: t("settings.qkDosePh"), maxlength: "20", disabled: "" });
+  const pauseChk = h("input", { type: "checkbox", onchange: () => { qPausable = pauseChk.checked; } });
+  const pauseWrap = h("label", { class: "chkrow hidden" }, pauseChk, h("span", {}, t("settings.qkPausable")));
+  const Q_ICON_CHOICES = ["star", "heart", "sun", "moon", "walk", "bath", "bottle", "pill", "note", "clock"];
+  const iconRow = h("div", { class: "iconchips" }, ...Q_ICON_CHOICES.map((ic) => h("button", {
+    type: "button", class: "icchip", "data-quick-icon": ic, title: ic, html: icon(ic, "sm"),
+    onclick: () => {
+      qIcon = qIcon === ic ? "" : ic;
+      iconRow.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.getAttribute("data-quick-icon") === qIcon));
+    },
+  })));
+  const typeSeg = h("div", { class: "seg" },
+    h("button", { type: "button", class: "on", onclick: (ev) => { qType = "med"; setTypeBtn(ev.currentTarget); medDose.disabled = false; } }, t("settings.qkTypeMed")),
+    h("button", { type: "button", onclick: (ev) => { qType = "act"; setTypeBtn(ev.currentTarget); medDose.disabled = true; } }, t("settings.qkTypeAct"))
+  );
+  const setTypeBtn = (btn) => {
+    typeSeg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
+    medName.placeholder = t(qType === "med" ? "settings.qkMedPh" : "settings.qkActPh");
+    pauseWrap.classList.toggle("hidden", qType !== "act");
+  };
+  body.append(h("div", { class: "fieldrow" }, typeSeg, medName, medDose));
+  body.append(h("div", { class: "fieldrow" }, pauseWrap, iconRow));
+  body.append(h("div", { class: "rowbtns" }, h("button", { type: "button", class: "btn primary", onclick: () => {
+    const name = medName.value.trim();
+    if (!name) return;
+    const list = quickDefs();
+    const def = { uid: newQuickUid(), type: qType, name, dose: qType === "med" ? medDose.value.trim() : "" };
+    if (qIcon) def.icon = qIcon;
+    if (qType === "act" && qPausable) def.pausable = true;
+    list.push(def);
+    saveQuickDefs(list);
+    openGridEditor(); renderToday();
+  } }, t("settings.qkAdd"))));
+
+  openSheet($("gridDialog"));
+}
+
+/* ---------- LLM endpoint setup (address → test → model dropdown) ---------- */
+
+let llmModelList = []; // models pulled from the endpoint by the last Test / Detect (kept while the sheet stays open)
+
+function llmSetupRow() {
+  const cur = llmCfg || { provider: "off", base_url: "", model: "", has_key: false };
+  const status = h("small", { class: "hint" });
+  const base = h("input", { type: "text", inputmode: "url", placeholder: "http://127.0.0.1:11434/v1", value: cur.base_url || "", onchange: () => saveLlm({}) });
+  const modelIn = h("input", { type: "text", placeholder: t("settings.llmModelPh"), value: cur.model || "", onchange: () => { fillSel(); saveLlm({}); } });
+  const key = h("input", { type: "password", autocomplete: "new-password", placeholder: cur.has_key ? t("settings.llmKeyKeep") : t("settings.llmKeyPh"), onchange: () => saveLlm({}) });
+  const modelSel = h("select", { "aria-label": t("settings.llmModelPh"), onchange: () => { if (!modelSel.disabled) { modelIn.value = modelSel.value; saveLlm({}); } } });
+  async function saveLlm(extra) {
+    const patch = Object.assign({ provider: (llmCfg || { provider: "off" }).provider, base_url: base.value.trim(), model: modelIn.value.trim() }, extra);
+    if (key.value) { patch.api_key = key.value; key.value = ""; }
+    try { const d = await api(API.llm, { method: "POST", body: JSON.stringify(patch) }); llmCfg = d.llm; status.textContent = ""; return true; }
+    catch { status.textContent = t("settings.llmSaveFail"); return false; }
+  }
+  function fillSel() {
+    const value = modelIn.value.trim();
+    modelSel.innerHTML = "";
+    if (!llmModelList.length && !value) {
+      modelSel.append(h("option", {}, t("settings.llmPick")));
+      modelSel.disabled = true;
+      return;
+    }
+    for (const m of [...new Set((value ? [value] : []).concat(llmModelList))]) {
+      const opt = h("option", { value: m }, m);
+      opt.selected = m === value;
+      modelSel.append(opt);
+    }
+    modelSel.disabled = false;
+  }
+  fillSel();
+
+  const btnTest = h("button", { type: "button", class: "mini wide", onclick: async () => {
+    status.textContent = t("settings.llmTesting");
+    if (!(await saveLlm({}))) return;
+    let d = await api(`${API.llm}/models`, { method: "POST", body: "{}" }).catch(() => null);
+    if (!d || !d.ok) { status.textContent = `${t("settings.llmTestFail")} ${(d && d.error) || ""}`; return; }
+    llmModelList = Array.isArray(d.models) ? d.models : [];
+    if (llmModelList.length && !modelIn.value.trim()) { modelIn.value = llmModelList[0]; await saveLlm({}); }
+    fillSel();
+    if (!llmModelList.length) { status.textContent = t("settings.llmNoModels"); return; }
+    let msg = t("settings.llmModelsOk", { n: llmModelList.length });
+    status.textContent = `${msg} · ${t("settings.llmTesting")}`;
+    const t2 = await api(`${API.llm}/test`, { method: "POST", body: "{}" }).catch(() => null);
+    msg += t2 && t2.ok ? ` · ${t("settings.llmTestOk")} ${t2.reply} (${t2.ms} ms)` : ` · ${t("settings.llmTestFail")} ${(t2 && t2.error) || ""}`;
+    status.textContent = msg;
+  } }, t("settings.llmTest"));
+  const btnDetect = h("button", { type: "button", class: "mini ghost wide", onclick: async () => {
+    status.textContent = t("settings.llmTesting");
+    const d = await api(`${API.llm}/detect`, { method: "POST", body: "{}" }).catch(() => null);
+    if (!d || !d.found.length) { status.textContent = t("settings.llmNone"); return; }
+    base.value = d.base_url;
+    llmModelList = d.found;
+    if (!modelIn.value) modelIn.value = d.found[0];
+    await saveLlm({});
+    fillSel();
+    status.textContent = t("settings.llmDetected", { n: d.found.length });
+  } }, t("settings.llmDetect"));
+
+  return h("div", { class: "setrow" },
+    h("span", { class: "lbl" }, h("b", {}, t("settings.llmSetup")), h("small", {}, t("settings.llmSteps"))),
+    h("div", { class: "full" },
+      h("div", { class: "fieldrow" }, base, btnTest, btnDetect),
+      h("div", { class: "fieldrow" }, modelSel, modelIn),
+      key,
+      status,
+      h("small", { class: "hint" }, t("settings.llmNote")))
+  );
 }
 
 async function notify(text) {
@@ -4195,6 +4336,7 @@ async function init() {
   };
   $("settingsBtn").onclick = openSettings;
   $("settingsClose").onclick = () => closeSheet($("settingsDialog"));
+  $("gridClose").onclick = () => closeSheet($("gridDialog"));
   $("sheetClose").onclick = () => closeSheet($("entryDialog"));
   $("sheetCancel").onclick = () => closeSheet($("entryDialog"));
   $("listClose").onclick = () => closeSheet($("listDialog"));
@@ -4206,7 +4348,7 @@ async function init() {
   $("taskEditCancel").onclick = () => closeSheet($("taskEditDialog"));
   $("taskEditForm").addEventListener("submit", submitTaskEdit);
   $("entryForm").addEventListener("submit", submitEntry);
-  for (const id of ["entryDialog", "settingsDialog", "listDialog", "ackDialog", "taskDialog", "taskEditDialog"]) {
+  for (const id of ["entryDialog", "settingsDialog", "gridDialog", "listDialog", "ackDialog", "taskDialog", "taskEditDialog"]) {
     const dlg = $(id);
     dlg.addEventListener("click", (event) => { if (event.target === dlg) closeSheet(dlg); });
     dlg.addEventListener("cancel", () => {
