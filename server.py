@@ -59,7 +59,7 @@ CERT = os.environ.get("CERT", "")
 KEY = os.environ.get("KEY", "")
 CA_CERT = os.environ.get("CA_CERT", "")
 BIRTH_DATE = os.environ.get("BIRTH_DATE", "")
-VERSION = "1.20"
+VERSION = "1.22"
 
 LOCK = threading.Lock()
 USERS = [u.strip() for u in os.environ.get("USERS", "parent1,parent2,others").split(",") if u.strip()] or ["parent1", "parent2", "others"]
