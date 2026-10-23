@@ -1,0 +1,21 @@
+#!/bin/sh
+# Lienka snap launcher: applies `snap set lienka ...` config (rewritten into
+# lienka.conf by the configure hook), defaults the rest, execs the stdlib server.
+set -eu
+
+DATA_DIR="$SNAP_COMMON/data"
+HOST="0.0.0.0"
+PORT="8472"
+HTTP_PORT="0"  # /ca.crt sidecar off in the snap — TLS is a reverse-proxy job
+
+# shellcheck disable=SC1091
+[ -f "$SNAP_DATA/lienka.conf" ] && . "$SNAP_DATA/lienka.conf"
+
+export DATA_DIR HOST PORT HTTP_PORT
+[ -n "${USERS:-}" ] && export USERS
+[ -n "${BIRTH_DATE:-}" ] && export BIRTH_DATE
+[ -n "${TZ:-}" ] && export TZ
+
+echo "lienka: serving http://$(hostname):${PORT}/ — open it on each device and 'Add to Home Screen'. Family setup: snap set lienka users=\"mama papa\" birth-date=YYYY-MM-DD tz=Europe/Bratislava && snap restart lienka"
+
+exec python3 "$SNAP/app/server.py"

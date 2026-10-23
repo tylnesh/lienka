@@ -1,0 +1,52 @@
+name: lienka
+title: Lienka — baby log
+version: "1.22"
+summary: Self-hosted baby tracker — one SQLite file, a PWA for the whole family
+description: |
+  Lienka is a self-hosted baby tracker (nappies, feeds, sleep, walks, baths,
+  medications, measurements, notes) shared live between the caregivers' phones.
+  The whole state is one SQLite file on your own machine — no cloud, no accounts,
+  no telemetry. The server hosts an installable PWA: open http://this-machine:8472/
+  on each device and pick "Add to Home Screen". Works on iOS, Android and desktop.
+
+  After installing, configure it for your family and restart:
+
+    sudo snap set lienka users="mama papa" birth-date=2026-09-17 tz=Europe/Bratislava
+    sudo snap restart lienka
+
+  Data lives in /var/snap/lienka/common/data — it survives refreshes and even a
+  plain `snap remove` (use `sudo snap remove --purge lienka` to wipe). Timestamps
+  are wall-clock local, so set `tz` to your region. Writes are unauthenticated:
+  run on a trusted LAN or VPN only, never port-forwarded to the internet. For TLS
+  put the snap behind a reverse proxy (Caddy: `reverse_proxy 127.0.0.1:8472`).
+
+grade: stable
+confinement: strict
+base: core24
+license: GPL-3.0-only
+
+architectures:
+  # arm64 (Raspberry Pi home servers) comes via CI later — P6 in the repo docs.
+  - build_on: [amd64]
+    build_for: [amd64]
+
+apps:
+  lienka:
+    command: bin/lienka-launch
+    daemon: simple
+    restart-condition: on-failure
+    # network-bind: serve the PWA; network: outbound calls for the optional
+    # BYO-LLM assistant (cloud APIs or a local Ollama on 127.0.0.1:11434).
+    plugs: [network, network-bind]
+
+parts:
+  lienka:
+    plugin: nil
+    source: .
+    stage-packages: [python3, tzdata]
+    override-build: |
+      set -eu
+      install -d "$CRAFT_PART_INSTALL/app" "$CRAFT_PART_INSTALL/bin"
+      cp "$CRAFT_PART_SRC/server.py" "$CRAFT_PART_INSTALL/app/server.py"
+      cp -a "$CRAFT_PART_SRC/static" "$CRAFT_PART_INSTALL/app/static"
+      install -m 0755 "$CRAFT_PART_SRC/snap/local/lienka-launch" "$CRAFT_PART_INSTALL/bin/lienka-launch"
