@@ -25,10 +25,9 @@ confinement: strict
 base: core24
 license: GPL-3.0-only
 
-architectures:
+platforms:
   # arm64 (Raspberry Pi home servers) comes via CI later — P6 in the repo docs.
-  - build_on: [amd64]
-    build_for: [amd64]
+  amd64:
 
 apps:
   lienka:
