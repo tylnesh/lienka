@@ -24,6 +24,10 @@ grade: stable
 confinement: strict
 base: core24
 license: GPL-3.0-only
+contact: https://github.com/tylnesh/lienka/issues
+issues: https://github.com/tylnesh/lienka/issues
+website: https://github.com/tylnesh/lienka
+# source-code: https://github.com/tylnesh/lienka   <- add when the repo flips public (store validates it)
 
 platforms:
   # arm64 (Raspberry Pi home servers) comes via CI later — P6 in the repo docs.
