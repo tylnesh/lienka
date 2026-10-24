@@ -109,7 +109,7 @@ d.text((118, 390), "self-hosted baby log", font=font(FONT_REG, 46), fill=ACCENT)
 bullets = [
     "feeds · sleep · nappies · meds",
     "live timers, one-tap logging",
-    "shared on your LAN — no accounts",
+    "LAN-shared — zero accounts",
     "charts with WHO weight bands",
     "insights that cite their sources",
 ]
