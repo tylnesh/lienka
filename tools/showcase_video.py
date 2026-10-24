@@ -21,12 +21,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 import responsive_video as rv  # bezels, backdrop, outro card, ffmpeg helpers
 
 WORK = "/tmp/lienka-showcase/asm"
-TOUR_WEBM_DIR = "/tmp/lienka-showcase/rec"
+TOUR_WEBM_DIR = os.environ.get("TOUR_DIR", "/tmp/lienka-showcase/rec")
 DEVCLIPS = "/tmp/lienka-deviceclips"
 OUT = os.path.join("screenshots", "store-final", "lienka-showcase.mp4")
 MUSIC = "/tmp/lienka-music/canon.mp3"  # Pachelbel Canon, USAF Band — PD US Gov work
 XFADE = 0.55
 OUTRO_S = float(os.environ.get("OUTRO_S", "3.0"))
+HERO_S = float(os.environ.get("HERO_S", "3.4"))
+HERO_PNG = os.path.join("screenshots", "store-final", "Lienka-1-hero.png")
 
 
 def encode(src_vf, inputs, dur, out):
@@ -49,6 +51,12 @@ def main():
     tour = os.path.join(TOUR_WEBM_DIR, tour)
 
     segs = []
+    if HERO_S > 0:
+        assert os.path.exists(HERO_PNG), f"hero card missing: {HERO_PNG} (run tools/store_shots.py)"
+        seg_hero = os.path.join(WORK, "seg-hero.mp4")
+        encode(f"[0:v]scale={rv.CW}:{rv.CH},fps=25,format=yuv420p[v]", ["-loop", "1", "-i", HERO_PNG], HERO_S,
+               seg_hero)
+        segs.append((seg_hero, HERO_S))
     seg_tour = os.path.join(WORK, "seg-tour.mp4")
     d = rv.dur_of(tour) - 0.5
     encode(f"[0:v]scale={rv.CW}:{rv.CH},fps=25,setsar=1,format=yuv420p[v]", ["-i", tour], d, seg_tour)
@@ -81,7 +89,8 @@ def main():
         offset = acc - XFADE
         acc += segs[i][1] - XFADE
         lbl = "[xs]"
-        chain += f"{prev}[{i}:v]xfade=transition=slideleft:duration={XFADE}:offset={offset:.2f}{lbl};"
+        trans = "fade" if i == 1 else "slideleft"  # hero card dissolves into the app
+        chain += f"{prev}[{i}:v]xfade=transition={trans}:duration={XFADE}:offset={offset:.2f}{lbl};"
         prev = lbl
     chain += (f"[xs]fade=t=in:st=0:d=0.7,fade=t=out:st={total - 0.8:.2f}:d=0.7,format=yuv420p[v];"
               f"[{len(segs)}:a]atrim=0:{total:.2f},afade=t=in:st=0:d=1.3,"

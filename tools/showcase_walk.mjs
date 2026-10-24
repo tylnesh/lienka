@@ -71,6 +71,11 @@ for (const chip of ["feeds", "sleep", "weight", "output"]) {
   await clickFirst(`[data-chart="${chip}"]:visible`, 950);
 }
 
+// Review: growth-check cards + one reference link (sheet opens, closes on next stop)
+await tab("kontrola", 1300);
+for (let i = 0; i < 2; i++) { await page.mouse.wheel(0, 260); await sleep(200 * DW); }
+await clickFirst(".kcard .klink:visible", 1400);
+
 // Tips: sourced signal cards, gentle scroll
 await tab("insights", 1200);
 for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, 300); await sleep(230 * DW); }
