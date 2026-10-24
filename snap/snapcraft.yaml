@@ -14,8 +14,9 @@ description: |
     sudo snap set lienka users="mama,papa" birth-date=2026-09-17 tz=Europe/Bratislava
     sudo snap restart lienka
 
-  Data lives in /var/snap/lienka/common/data — it survives refreshes and even a
-  plain `snap remove` (use `sudo snap remove --purge lienka` to wipe). Timestamps
+  Data lives in /var/snap/lienka/common/data and survives `snap refresh`. A plain
+  `snap remove` leaves an automatic snapshot you can bring back (`sudo snap saved`,
+  `sudo snap restore <set>`); `sudo snap remove --purge lienka` wipes it for good. Timestamps
   are wall-clock local, so set `tz` to your region. Writes are unauthenticated:
   run on a trusted LAN or VPN only, never port-forwarded to the internet. For TLS
   put the snap behind a reverse proxy (Caddy: `reverse_proxy 127.0.0.1:8472`).
