@@ -11,7 +11,7 @@ description: |
 
   After installing, configure it for your family and restart:
 
-    sudo snap set lienka users="mama papa" birth-date=2026-09-17 tz=Europe/Bratislava
+    sudo snap set lienka users="mama,papa" birth-date=2026-09-17 tz=Europe/Bratislava
     sudo snap restart lienka
 
   Data lives in /var/snap/lienka/common/data — it survives refreshes and even a

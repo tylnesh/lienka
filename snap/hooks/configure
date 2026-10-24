@@ -1,15 +1,18 @@
 #!/bin/sh
 # Runs on `snap set/unset lienka ...`: rewrites $SNAP_DATA/lienka.conf from the
 # snap config. The daemon picks values up on restart (hooks can't self-restart).
-set -e
+# NOTE: no set -e here — unset config keys are normal and must not abort the hook.
+set -u
 
 conf="$SNAP_DATA/lienka.conf"
 tmp="$conf.tmp"
 : > "$tmp"
 
 put() { # $1 = snap set key, $2 = env var in the launcher
-    val=$(snapctl get "$1" || true)
-    [ -n "$val" ] && printf '%s="%s"\n' "$2" "$val" >> "$tmp"
+    val=$(snapctl get "$1" 2>/dev/null || true)
+    if [ -n "$val" ]; then
+        printf '%s="%s"\n' "$2" "$val" >> "$tmp"
+    fi
 }
 
 put port PORT

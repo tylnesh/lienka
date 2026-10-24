@@ -1,7 +1,8 @@
 #!/bin/sh
 # Lienka snap launcher: applies `snap set lienka ...` config (rewritten into
 # lienka.conf by the configure hook), defaults the rest, execs the stdlib server.
-set -eu
+# NOTE: no set -e — "[ -n "$VAR" ] && export" lines must be allowed to no-op.
+set -u
 
 DATA_DIR="$SNAP_COMMON/data"
 HOST="0.0.0.0"
@@ -16,6 +17,6 @@ export DATA_DIR HOST PORT HTTP_PORT
 [ -n "${BIRTH_DATE:-}" ] && export BIRTH_DATE
 [ -n "${TZ:-}" ] && export TZ
 
-echo "lienka: serving http://$(hostname):${PORT}/ — open it on each device and 'Add to Home Screen'. Family setup: snap set lienka users=\"mama papa\" birth-date=YYYY-MM-DD tz=Europe/Bratislava && snap restart lienka"
+echo "lienka: serving http://$(hostname):${PORT}/ — open it on each device and 'Add to Home Screen'. Family setup: snap set lienka users=\"mama,papa\" birth-date=YYYY-MM-DD tz=Europe/Bratislava && snap restart lienka"
 
 exec python3 "$SNAP/app/server.py"
