@@ -128,6 +128,9 @@ const scenarioNames = getArg("scenario", "today").split(",");
 const deviceNames = getArg("devices", Object.keys(DEVICES).join(",")).split(",");
 const tag = getArg("tag", "shot");
 const mode = getArg("mode", "viewport"); // viewport | full
+const locale = getArg("locale", "sk-SK");
+const uiLang = getArg("uiLang", ""); // force baby.lang (en|sk); empty = follow browser locale
+const uiTheme = getArg("uiTheme", ""); // force baby.theme (light|dark|auto); empty = follow OS
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const browser = await chromium.launch();
@@ -142,13 +145,18 @@ for (const dname of deviceNames) {
       deviceScaleFactor: d.dsf,
       hasTouch: d.touch,
       isMobile: d.touch,
-      locale: "sk-SK",
+      locale,
       colorScheme: process.env.DARK ? "dark" : "light",
       reducedMotion: process.env.ANIM ? "no-preference" : "reduce",
       ignoreHTTPSErrors: process.env.INSECURE_TLS === "1",
     });
     try { await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin }); } catch {}
-    try { await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin }); } catch {}
+    if (uiLang || uiTheme) {
+      await context.addInitScript(([l, t]) => {
+        if (l) localStorage.setItem("baby.lang", l);
+        if (t) localStorage.setItem("baby.theme", t);
+      }, [uiLang, uiTheme]);
+    }
     const page = await context.newPage();
     page.on("pageerror", (e) => console.error(`[pageerror ${dname}/${sname}]`, e.message));
     page.on("console", (m) => { if (m.type() === "error") console.error(`[console ${dname}/${sname}]`, m.text()); });
