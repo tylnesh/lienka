@@ -80,7 +80,22 @@ DATA_DIR=/tmp/baby-test HOST=127.0.0.1 PORT=8472 HTTP_PORT=0 python3 server.py  
 DATA_DIR=/tmp/baby-test python3 tools/seed_demo.py --open-timer                  # ~9 synthetic newborn days
 node tools/checklayout.mjs                                                       # layout checker (playwright)
 node tools/shot.mjs --scenario today --tag dev                                  # screenshots → ./screenshots
+python3 tools/tests/pump_api_test.py   http://localhost:8499                     # API suites (see headers for setup)
+python3 tools/tests/stash_api_test.py  http://localhost:8500                     # milk-bank math incl. FIFO/expiry
+node tools/tests/pump_ui_smoke.mjs     http://127.0.0.1:8498                     # headless UI suite (playwright)
 ```
+
+## Releasing safely — data survival is a hard gate
+
+No deploy or release ships unless the full data lifecycle passes against the candidate code. `./deploy.sh` enforces this automatically: it snapshots the live database (`VACUUM INTO`, kept on athena + pulled to `backups/`), then runs the gate on that real backup **before anything is copied to athena** — a single missing row or ml aborts the deploy. After the restart it re-checks that the live instance still serves a complete export.
+
+```bash
+python3 tools/gate_release.py --db backups/backup-<stamp>.db   # what deploy.sh runs, also for snap packaging
+```
+
+The gate proves, on throwaway copies only (your database is never written): the backup boots under this code; startup migrations preserve every row, kind-count, ml total and time span (the v1.23 pump→bank reclassification included); `/export.csv` carries all rows with a complete header; and that CSV replays through `tools/import_csv.py` into a fresh instance to identical metrics. GitHub Actions runs the same cycle on synthetic seed data for every push/PR.
+
+If only a CSV export survived (lost disk, new machine), restore into a schema-created but stopped database: `python3 tools/import_csv.py --db <path>/baby.db --csv export.csv` preserves ids and timestamps; `--append` merges into a running log with new ids and remapped bottle→bag links. The everyday restore path remains the SQLite backup: stop the app, replace `baby.db`, start. For snap packaging (`snapcraft pack`) or any release without `deploy.sh`, run the gate manually against a copy of `/var/snap/lienka/common/data/baby.db` first.
 
 ## Roadmap
 

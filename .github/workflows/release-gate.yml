@@ -1,0 +1,39 @@
+# Every push/PR must prove the data lifecycle survives this code: backup-restore -> startup
+# migrations -> CSV export -> CSV import, on synthetic data (seed_demo). The same gate runs
+# against a REAL backup inside deploy.sh before anything reaches athena. Keep both green.
+name: release gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  data-cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Synthetic backup/export/import gate
+        run: |
+          mkdir -p /tmp/lienka-ci
+          DATA_DIR=/tmp/lienka-ci PORT=8499 HTTP_PORT=0 \
+            BIRTH_DATE="$(date -d '-9 days' +%F)" python3 server.py & pid=$!
+          sleep 1.5
+          DATA_DIR=/tmp/lienka-ci BIRTH_DATE="$(date -d '-9 days' +%F)" python3 tools/seed_demo.py
+          # stop first so WAL is checkpointed and the gate gets a clean single-file copy,
+          # exactly like the VACUUM INTO backups deploy.sh gates against
+          kill $pid; wait $pid 2>/dev/null || true
+          python3 tools/gate_release.py --db /tmp/lienka-ci/baby.db
+
+      - name: API suites on pristine instances
+        run: |
+          mkdir -p /tmp/lienka-api /tmp/lienka-stash
+          DATA_DIR=/tmp/lienka-api   PORT=8499 HTTP_PORT=0 python3 server.py & p1=$!
+          DATA_DIR=/tmp/lienka-stash PORT=8500 HTTP_PORT=0 python3 server.py & p2=$!
+          sleep 1.5
+          python3 tools/tests/pump_api_test.py  http://localhost:8499
+          python3 tools/tests/stash_api_test.py http://localhost:8500
+          kill $p1 $p2
