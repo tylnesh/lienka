@@ -1,14 +1,14 @@
 # Lienka — baby log
 
-A small, **self-hosted** baby tracker: nappies, feeds, sleep, walks, baths, medications, activities, measurements (weight / temp / vitamin D) and notes — shared live between the caregivers' phones. No cloud, no accounts, no telemetry: the whole state is one SQLite file on your own hardware, and the app only ever talks to your own server.
+A small, **self-hosted** baby tracker: nappies, feeds, pumping & milk bank, sleep, walks, baths, medications, activities, measurements (weight / height / temp / vitamin D) and notes — shared live between the caregivers' phones. No cloud, no accounts, no telemetry: the whole state is one SQLite file on your own hardware, and the app only ever talks to your own server.
 
 The client is a plain PWA (installable, offline shell) served by the same process — open the URL on each device, *Add to Home Screen*, done. Works on iOS, Android, desktop.
 
 ## What you get
 
-- **Today** — running timers (feed per side/method, sleep, walk, bath, activity), one-tap diaper chips with undo, quick-log tiles, daily stats, "last feed + time to next", notices card for threshold signals.
+- **Today** — running timers (feed per side/method, pumping, sleep, walk, bath, activity), one-tap diaper chips with undo, quick-log tiles, daily stats incl. today's expressed volume and the freezer bank, "last feed + time to next", notices card for threshold signals.
 - **Log** — day-grouped entries, user/kind filters, edit & delete, paging.
-- **Charts** — output, feeds, sleep, weight (WHO weight-velocity bands), care time; 7/14/30 days.
+- **Charts** — output, feeds, pumping (daily supply, 3-day trend, bank), sleep, weight (WHO weight-velocity bands), length (WHO length-for-age P3–P97 envelope), care time; 7/14/30 days.
 - **Insights** — deterministic checks computed from your records against registered references (WHO, NHS, ABM, Slovak MZ SR guidance for BFHI care); no AI, no network calls, every threshold shows its source or is marked `[unsourced]`. Not medical advice.
 - **Doctor view** — pediatrician-question checklist generated from the same signals; copy to clipboard for the visit.
 - Recurring reminders with `.ics` export, CSV export, dark/light theme, SK + EN UI, optional scale-photo OCR for feeding weights, optional BYO-LLM assistant (off by default — keys stay server-side, see `server.py`).
@@ -32,6 +32,10 @@ docker run -d --name lienka -p 8472:8472 -v $PWD/data:/data -e BIRTH_DATE=2026-0
 # or take a look first with a synthetic demo database (auto-resets on restart):
 docker build -t lienka . && docker run -d -p 8472:8472 -e DEMO=1 lienka
 ```
+
+### Upgrading to v1.23 (pumping & milk bank)
+
+Pumping became its own record kind — mother's supply and freezer **bank**, no longer a baby "feed method". The reclassification of historical `pump` feed rows is **automated**: it runs at every server start (idempotent, no-op once applied), so a container restart or `snap refresh` completes the upgrade on its own. `python3 tools/migrate_pump.py --db <path> [--dry-run]` remains as an optional inspection/backup helper (snap data lives in `/var/snap/lienka/common/data/baby.db`). New in the app: per-session freezer bags with use-by dates and FIFO draw-down (`/api/stash`), a bottle→bag provenance picker, pumping chart, height (cm) measures with WHO length-for-age bands.
 
 ## Configuration
 

@@ -57,16 +57,53 @@ def main() -> None:
         rows.append(rec)
 
     day_count = (today.date() - birth.date()).days + 1
+    # weekly rhythm plus recent points, so growth charts render whatever the demo window is
+    meas_offsets = {0, 2, 4, 6, 8} | {day_count - 3, day_count - 1}
+    links = []  # (feed row idx, pump row idx) resolved to ids right before insert
     for offset in range(day_count):
         day = (birth + timedelta(days=offset)).date()
         d = datetime.combine(day, datetime.min.time())
         weight = 3400 + offset * 22 + random.randint(-15, 20)
-        if offset in (0, 2, 4, 6, 8):
-            add(d + timedelta(hours=9, minutes=random.randint(0, 40)), "measure", U1,
-                measure_kind="weight_g", value=weight)
+        if offset in meas_offsets:
+            for kind_m, val in (("weight_g", weight),
+                                ("height_cm", round(49.6 + offset * 0.38 + random.uniform(-0.15, 0.2), 1))):
+                mt = d + timedelta(hours=9, minutes=random.randint(0, 55), seconds=random.randint(0, 59) if kind_m == "height_cm" else 0)
+                if kind_m == "height_cm":
+                    mt = max(mt, d + timedelta(hours=9, minutes=41))
+                if mt < today:
+                    add(mt, "measure", U1, measure_kind=kind_m, value=val)
         # vitamin D once a day
         add(d + timedelta(hours=10, minutes=random.randint(0, 30)), "measure", U0,
             measure_kind="vitd_iu", value=400)
+
+        # milk bank story from day 3: morning pump (some bags stored with use-by dates),
+        # a linked bottle around noon, and a combined pump+feed session in the evening
+        if offset >= 3 and day < today.date():
+            supply = min(150, 40 + offset * 10) + random.randint(-8, 8)
+            morning = d + timedelta(hours=6, minutes=random.randint(20, 50))
+            morning_end = morning + timedelta(minutes=random.randint(15, 25))
+            expires = None
+            if offset == 4:
+                expires = (day + timedelta(days=120)).isoformat()  # freezer stash
+            if day_count >= 7 and day == today.date() - timedelta(days=3):
+                expires = (today.date() + timedelta(days=9)).isoformat()  # fridge, expiring soon
+            if day_count >= 7 and day == today.date() - timedelta(days=6):
+                expires = (today.date() - timedelta(days=1)).isoformat()  # past its date
+            add(morning, "pump", U1, pump_side=random.choice(["left", "right"]), timer=1,
+                end_at=stamp(morning_end), pump_ml=supply, expires_on=expires)
+            morning_idx = len(rows) - 1
+            if offset >= 4 and random.random() < 0.65:
+                drink = min(supply, random.randint(30, 70))
+                noon = morning + timedelta(hours=random.randint(4, 7))
+                add(noon, "feed", U0, feed_method="bottle_expressed", feed_ml=drink,
+                    feed_minutes=random.randint(8, 15))
+                links.append((len(rows) - 1, morning_idx))
+            if random.random() < 0.45:
+                evening = d + timedelta(hours=21, minutes=random.randint(0, 40))
+                drank = random.randint(40, 80)
+                add(evening, "pump", U1, pump_side="both", timer=1,
+                    end_at=stamp(evening + timedelta(minutes=random.randint(20, 35))),
+                    pump_ml=drank + random.randint(0, 40), fed_ml=drank)
 
         clock = d + timedelta(hours=7, minutes=random.randint(0, 50))
         while clock.date() == day and clock < today - timedelta(minutes=25):
@@ -122,6 +159,11 @@ def main() -> None:
     if args.open_timer:
         started = today - timedelta(minutes=random.randint(25, 70))
         add(started, "sleep", U1, timer=1)
+
+    # rows insert in order on one connection ⇒ id = max(id)+1+row_index; wire the bottle links now
+    base = conn.execute("SELECT COALESCE(MAX(id), 0) FROM entries").fetchone()[0]
+    for feed_i, pump_i in links:
+        rows[feed_i]["source_pump_id"] = base + 1 + pump_i
 
     columns = sorted({k for r in rows for k in r})
     sql = "INSERT INTO entries(%s) VALUES(%s)" % (",".join(columns), ",".join("?" * len(columns)))

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Michal Kohutek
 # SPDX-License-Identifier: GPL-3.0-only
 
-"""Lienka — baby log: shared diary of nappies, feeds, sleep, measurements and notes for a small group of caregivers.
+"""Lienka — baby log: shared diary of nappies, feeds, pumping & milk bank, sleep, measurements and notes for a small group of caregivers.
 
 Standard library only (runs anywhere, e.g. in python:3.12-alpine). One SQLite file is the whole state.
 
@@ -30,7 +30,8 @@ API:
     POST   /api/tasks              planned: {title, detail?, per_day?, times?, icon?}
     PUT    /api/tasks/<id>         planned: partial update
     DELETE /api/tasks/<id>         planned: removes the task; existing "task" entries keep their title snapshot
-    GET    /api/summary?days=7     per-day buckets + today + weights + open logs
+    GET    /api/summary?days=7     per-day buckets + today + weights + heights + open logs + bank balance
+    GET    /api/stash              milk bank as bags (one pumping session = one bag), FIFO draw-down
     GET    /export.csv?from=&to=
     GET    /healthz
 """
@@ -59,16 +60,17 @@ CERT = os.environ.get("CERT", "")
 KEY = os.environ.get("KEY", "")
 CA_CERT = os.environ.get("CA_CERT", "")
 BIRTH_DATE = os.environ.get("BIRTH_DATE", "")
-VERSION = "1.22"
+VERSION = "1.23"
 
 LOCK = threading.Lock()
 USERS = [u.strip() for u in os.environ.get("USERS", "parent1,parent2,others").split(",") if u.strip()] or ["parent1", "parent2", "others"]
-KINDS = ["diaper", "feed", "sleep", "walk", "bath", "medication", "activity", "task", "measure", "note"]
-TIMER_KINDS = ["feed", "sleep", "walk", "bath", "activity"]
+KINDS = ["diaper", "feed", "sleep", "pump", "walk", "bath", "medication", "activity", "task", "measure", "note"]
+TIMER_KINDS = ["feed", "sleep", "pump", "walk", "bath", "activity"]
 DIAPER_TYPES = ["wet", "dirty", "mixed"]
 DIAPER_COLOURS = ["mustard", "yellow", "green", "brown", "black", "red", "other"]
-FEED_METHODS = ["breast_left", "breast_right", "bottle_expressed", "bottle_formula", "pump"]
-MEASURE_KINDS = ["weight_g", "temp_c", "vitd_iu"]
+FEED_METHODS = ["breast_left", "breast_right", "bottle_expressed", "bottle_formula"]
+PUMP_SIDES = ["left", "right", "both"]
+MEASURE_KINDS = ["weight_g", "height_cm", "temp_c", "vitd_iu"]
 TASK_REPEATS = ["daily", "weekly", "monthly"]
 TASK_ICONS = ["bell", "pill", "calendar", "heart", "sun", "moon", "star", "walk", "bath", "bottle", "scale", "note", "clock", "home", "check"]
 TASK_COLORS = ["#2f8f78", "#d9822b", "#5b8def", "#b56576", "#8b5cf6", "#d64545", "#6b7280"]
@@ -79,6 +81,7 @@ MAX_BODY_PHOTO = 4_000_000
 FIELDS = [
     "id", "user", "kind", "at", "created", "updated", "diaper_type", "diaper_colour",
     "feed_method", "feed_minutes", "feed_ml", "swallows", "end_at",
+    "pump_ml", "pump_side", "fed_ml", "source_pump_id", "expires_on",
     "measure_kind", "value", "note", "timer", "med_name", "dose", "activity", "task_id",
     "scale_before_g", "scale_after_g", "pausable", "paused_at", "pause_seconds",
 ]
@@ -209,6 +212,16 @@ def init_db() -> None:
         for name, sql in (("pausable", "INTEGER DEFAULT 0"), ("paused_at", "TEXT"), ("pause_seconds", "INTEGER DEFAULT 0")):
             if name not in cols:
                 conn.execute(f"ALTER TABLE entries ADD COLUMN {name} {sql}")
+        for name, sql in (("pump_ml", "INTEGER"), ("pump_side", "TEXT"), ("fed_ml", "INTEGER"), ("source_pump_id", "INTEGER"), ("expires_on", "TEXT")):
+            if name not in cols:
+                conn.execute(f"ALTER TABLE entries ADD COLUMN {name} {sql}")
+        # reclassification (v1.23), automated on every startup: pumping is mother's supply, not
+        # baby's intake — old feed entries with method "pump" become their own kind.
+        # Idempotent: once converted no row matches; tools/migrate_pump.py only inspects/backups manually.
+        conn.execute("UPDATE entries SET kind='pump', pump_ml=feed_ml, feed_ml=NULL, feed_method=NULL"
+                     " WHERE kind='feed' AND feed_method='pump'")
+        conn.execute("CREATE INDEX IF NOT EXISTS entries_source ON entries(source_pump_id)"
+                     " WHERE source_pump_id IS NOT NULL")
 
 
 # ---------- optional LLM backend (BYO endpoint; key stays server-side only) ----------
@@ -551,6 +564,42 @@ def validate(body: dict) -> tuple[dict | None, dict]:
             diff = int(round(rec["scale_after_g"] - rec["scale_before_g"]))
             if 2 <= diff <= 400:
                 rec["feed_ml"] = diff
+        # optional provenance link: this bottle drew milk from an earlier pumping session
+        if body.get("source_pump_id") not in (None, ""):
+            sid = clean_int(body.get("source_pump_id"), "source_pump_id", errors, 10**9)
+            if sid is not None:
+                with db() as conn:
+                    src = conn.execute("SELECT kind FROM entries WHERE id=?", (sid,)).fetchone()
+                if not src or src["kind"] != "pump":
+                    errors["source_pump_id"] = "not_found"
+                else:
+                    rec["source_pump_id"] = sid
+    elif kind == "pump":
+        rec["pump_ml"] = clean_int(body.get("pump_ml"), "pump_ml", errors, 2000)
+        rec["fed_ml"] = clean_int(body.get("fed_ml"), "fed_ml", errors, 1000)
+        side = body.get("pump_side")
+        if side is None or side == "":
+            rec["pump_side"] = None
+        elif side in PUMP_SIDES:
+            rec["pump_side"] = side
+        else:
+            errors["pump_side"] = "bad_value"
+        expires = body.get("expires_on")
+        if expires is None or expires == "":
+            rec["expires_on"] = None
+        elif valid_day(expires):
+            rec["expires_on"] = expires
+        else:
+            errors["expires_on"] = "bad_value"
+        end_at = body.get("end_at") or None
+        rec["end_at"] = end_at
+        if end_at is not None:
+            if not valid_stamp(end_at):
+                errors["end_at"] = "bad_datetime"
+            elif "at" not in errors:
+                minutes = minutes_between(at, end_at)
+                if minutes is None:
+                    errors["end_at"] = "before_start" if end_at < at else "out_of_range"
     elif kind in ("sleep", "walk", "bath"):
         end_at = body.get("end_at") or None
         rec["end_at"] = end_at
@@ -701,6 +750,23 @@ def validate_update(body: dict, existing: sqlite3.Row) -> tuple[dict, dict]:
         if minutes is None:
             errors["end_at"] = "before_start" if final_end < final_at else "out_of_range"
 
+    def source_link_update():
+        if "source_pump_id" not in body:
+            return
+        raw = body["source_pump_id"]
+        if raw is None or raw == "":
+            updates["source_pump_id"] = None
+            return
+        sid = clean_int(raw, "source_pump_id", errors, 10**9)
+        if sid is None:
+            return
+        with db() as conn:
+            src = conn.execute("SELECT kind FROM entries WHERE id=?", (sid,)).fetchone()
+        if not src or src["kind"] != "pump":
+            errors["source_pump_id"] = "not_found"
+        else:
+            updates["source_pump_id"] = sid
+
     if kind == "diaper":
         enum_update("diaper_type", DIAPER_TYPES, True)
         enum_update("diaper_colour", DIAPER_COLOURS)
@@ -740,6 +806,22 @@ def validate_update(body: dict, existing: sqlite3.Row) -> tuple[dict, dict]:
                                   existing["pause_seconds"], existing["paused_at"])
             if minutes is not None and existing["feed_minutes"] is None and "feed_minutes" not in updates:
                 updates["feed_minutes"] = minutes
+        source_link_update()
+        note_update()
+    elif kind == "pump":
+        int_update("pump_ml", 2000)
+        int_update("fed_ml", 1000)
+        enum_update("pump_side", PUMP_SIDES)
+        if "expires_on" in body:
+            raw = body["expires_on"]
+            if raw is None or raw == "":
+                updates["expires_on"] = None
+            elif valid_day(raw):
+                updates["expires_on"] = raw
+            else:
+                errors["expires_on"] = "bad_value"
+        stamp_update("end_at")
+        validate_interval()
         note_update()
     elif kind in ("sleep", "walk", "bath"):
         stamp_update("end_at")
@@ -915,7 +997,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, {
                 "users": cfg["users"], "kinds": KINDS, "diaper_types": DIAPER_TYPES,
                 "diaper_colours": DIAPER_COLOURS, "feed_methods": FEED_METHODS,
-                "measure_kinds": MEASURE_KINDS, "birth_date": cfg["birth_date"],
+                "pump_sides": PUMP_SIDES, "measure_kinds": MEASURE_KINDS, "birth_date": cfg["birth_date"],
                 "age_days": age, "server_time": now_local(), "version": VERSION,
                 "setup_needed": bool(not cfg["configured"] and not has_entries),
             })
@@ -934,6 +1016,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"photo_a": row["photo_a"], "photo_b": row["photo_b"]})
         elif path == "/api/summary":
             self._summary()
+        elif path == "/api/stash":
+            self._stash()
         elif path == "/api/tasks":
             self._tasks()
         elif path == "/api/llm":
@@ -1004,15 +1088,25 @@ class Handler(BaseHTTPRequestHandler):
             rows = [row_to_dict(r) for r in conn.execute(
                 "SELECT * FROM entries WHERE at >= ? ORDER BY at ASC", (start + "T00:00",)
             ).fetchall()]
+            # milk bank over ALL history: pumped minus what bottles of expressed milk took back out;
+            # combined sessions (pump with fed_ml) already netted inside the pump sum
+            bank_ml = conn.execute(
+                "SELECT COALESCE(SUM(COALESCE(pump_ml,0) - COALESCE(fed_ml,0)), 0) FROM entries WHERE kind='pump'"
+            ).fetchone()[0] - conn.execute(
+                "SELECT COALESCE(SUM(COALESCE(feed_ml,0)), 0) FROM entries"
+                " WHERE kind='feed' AND feed_method='bottle_expressed' AND (timer=0 OR end_at IS NOT NULL)"
+            ).fetchone()[0]
         per_day: dict[str, dict] = {}
         weights = []
+        heights = []
         for offset in range(days - 1, -1, -1):
             day = (today - timedelta(days=offset)).isoformat()
             per_day[day] = {"date": day, "wet": 0, "dirty": 0, "mixed": 0, "nappies": 0,
                             "feeds": 0, "feed_minutes": 0, "feed_ml": 0, "sleep_minutes": 0,
+                            "pumps": 0, "pump_ml": 0, "pump_minutes": 0, "bank_delta": 0,
                             "walks": 0, "walk_minutes": 0, "baths": 0, "bath_minutes": 0,
                             "medications": 0, "activities": 0, "activity_minutes": 0,
-                            "notes": 0, "weight_g": None, "temp_c": None, "swallows": None,
+                            "notes": 0, "weight_g": None, "height_cm": None, "temp_c": None, "swallows": None,
                             "entry_count": 0, "first_at": None, "last_at": None}
         for row in rows:
             day = row["at"][:10]
@@ -1036,8 +1130,21 @@ class Handler(BaseHTTPRequestHandler):
                 bucket["feeds"] += 1
                 bucket["feed_minutes"] += row["feed_minutes"] or 0
                 bucket["feed_ml"] += row["feed_ml"] or 0
+                if row["feed_method"] == "bottle_expressed":
+                    bucket["bank_delta"] -= row["feed_ml"] or 0
                 if row["swallows"] is not None:
                     bucket["swallows"] = (bucket["swallows"] or 0) + row["swallows"]
+            elif kind == "pump":
+                if row.get("timer") == 1 and not row["end_at"]:
+                    continue
+                bucket["pumps"] += 1
+                bucket["pump_ml"] += row["pump_ml"] or 0
+                minutes = eff_minutes(row["at"], row["end_at"], row.get("pause_seconds") or 0, row.get("paused_at"))
+                bucket["pump_minutes"] += minutes if minutes is not None else (row["feed_minutes"] or 0)
+                fed = row["fed_ml"] or 0
+                if fed:
+                    bucket["feed_ml"] += fed  # milk the baby drank during a pumping session is intake too
+                bucket["bank_delta"] += (row["pump_ml"] or 0) - fed
             elif kind == "sleep":
                 minutes = eff_minutes(row["at"], row["end_at"], row.get("pause_seconds") or 0, row.get("paused_at"))
                 if minutes is not None:
@@ -1069,6 +1176,9 @@ class Handler(BaseHTTPRequestHandler):
                 if row["measure_kind"] == "weight_g" and row["value"] is not None:
                     bucket["weight_g"] = row["value"]
                     weights.append({"date": day, "value": row["value"]})
+                elif row["measure_kind"] == "height_cm" and row["value"] is not None:
+                    bucket["height_cm"] = row["value"]
+                    heights.append({"date": day, "value": row["value"]})
                 elif row["measure_kind"] == "temp_c" and row["value"] is not None:
                     bucket["temp_c"] = row["value"]
             elif kind == "note":
@@ -1078,6 +1188,8 @@ class Handler(BaseHTTPRequestHandler):
             "days": [per_day[d] for d in per_day],
             "today": per_day.get(today_key),
             "weights": weights,
+            "heights": heights,
+            "bank_ml": bank_ml,
             "open_logs": sorted(
                 (row for row in rows if row["end_at"] is None and (row.get("timer") == 1 or row["kind"] == "sleep")),
                 key=lambda row: row["at"],
@@ -1085,6 +1197,50 @@ class Handler(BaseHTTPRequestHandler):
             ),
             "open_sleep": next((row for row in rows if row["kind"] == "sleep" and not row["end_at"]), None),
         })
+
+    def _stash(self) -> None:
+        """Freezer/fridge inventory: every pumping session is one bag of milk.
+        Bags are drawn down first by explicitly linked bottles (source_pump_id),
+        then unlinked bottle-expressed feeds consume the oldest bags FIFO."""
+        with db() as conn:
+            pumps = [dict(r) for r in conn.execute(
+                "SELECT id, at, pump_ml, fed_ml, expires_on FROM entries"
+                " WHERE kind='pump' AND COALESCE(pump_ml,0) > 0 ORDER BY at ASC").fetchall()]
+            feeds = conn.execute(
+                "SELECT source_pump_id, feed_ml FROM entries"
+                " WHERE kind='feed' AND feed_method='bottle_expressed' AND (timer=0 OR end_at IS NOT NULL)").fetchall()
+        bags = {r["id"]: {"id": r["id"], "at": r["at"], "pumped": r["pump_ml"] or 0,
+                          "drank": r["fed_ml"] or 0, "taken": 0, "expires_on": r["expires_on"]} for r in pumps}
+        for bag in bags.values():
+            bag["free"] = max(0, bag["pumped"] - bag["drank"])
+        unlinked = 0
+        overflow = 0
+        for f in feeds:
+            amount = f["feed_ml"] or 0
+            bag = bags.get(f["source_pump_id"]) if f["source_pump_id"] else None
+            if bag is not None:
+                take = min(amount, bag["free"])
+                bag["free"] -= take
+                bag["taken"] += take
+                unlinked += amount - take  # linked bag ran dry: the rest consumed something else
+            else:
+                unlinked += amount
+        for bag in bags.values():  # FIFO across whole days (same at ⇒ insertion order)
+            if unlinked <= 0:
+                break
+            take = min(unlinked, bag["free"])
+            bag["free"] -= take
+            bag["taken"] += take
+            unlinked -= take
+        short = max(0, unlinked)  # bottles exceeded every recorded drop of milk
+        today = date.today().isoformat()
+        soon = (date.today() + timedelta(days=14)).isoformat()
+        expired_ml = sum(b["free"] for b in bags.values() if b["free"] and b["expires_on"] and b["expires_on"] < today)
+        soon_ml = sum(b["free"] for b in bags.values() if b["free"] and b["expires_on"] and today <= b["expires_on"] <= soon)
+        balance = sum(b["free"] for b in bags.values())
+        bags_list = sorted(bags.values(), key=lambda b: ((b["expires_on"] or "9999-12-31"), b["at"]))
+        self._json(HTTPStatus.OK, {"balance": balance, "short": short, "expired_ml": expired_ml,
+                                   "soon_ml": soon_ml, "bags": [b for b in bags_list if b["free"] > 0 or b["taken"]]})
 
     def _tasks(self) -> None:
         with db() as conn:

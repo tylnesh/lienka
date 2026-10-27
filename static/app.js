@@ -3,26 +3,30 @@
 
 /* baby-log PWA — views: today / log / stats / insights, entry editing in a modal sheet. */
 
-const API = { meta: "/api/meta", settings: "/api/settings", entries: "/api/entries", summary: "/api/summary", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
+const API = { meta: "/api/meta", settings: "/api/settings", entries: "/api/entries", summary: "/api/summary", stash: "/api/stash", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
 
 const I18N = {
   sk: {
     title: "Denník miminka",
     users: { others: "Ostatní" },
     setup: { title: "Nastavte Lienku", sub: "Kto sa o bábätko stará a kedy sa narodilo? Dá sa to kedykoľvek upraviť v Nastaveniach.", users: "Ošetrovatelia", addName: "Meno (napr. Mamička)", add: "Pridať človeka", remove: "Odstrániť", birth: "Dátum narodenia", birthSub: "Zostáva na vašom serveri — vek a rastové grafy sa sprístupnia po nastavení.", save: "Uložiť nastavenie", saved: "Nastavenie uložené", needUser: "Zadajte aspoň jedno meno.", badRejected: "Server odmietol hodnoty", failed: "Nepodarilo sa uložiť — ste online?", renameNote: "Premenovanie prepíše aj staršie záznamy.", removedNote: "Po odstránení zostanú staré záznamy s pôvodným menom.", },
-    kinds: { diaper: "Plenka", feed: "Kojenie", sleep: "Spánok", walk: "Prechádzka", bath: "Kúpeľ", medication: "Lieky", activity: "Aktivita", task: "Úloha", measure: "Meranie", note: "Poznámka" },
+    kinds: { diaper: "Plenka", feed: "Kojenie", sleep: "Spánok", pump: "Odsávanie", walk: "Prechádzka", bath: "Kúpeľ", medication: "Lieky", activity: "Aktivita", task: "Úloha", measure: "Meranie", note: "Poznámka" },
     kind_sub: {
-      diaper: "mokrá · stolica", feed: "časovač · ml", sleep: "spí / vstal", walk: "čas vonku",
+      diaper: "mokrá · stolica", feed: "časovač · ml", sleep: "spí / vstal", pump: "zásoba mlieka",
+      walk: "čas vonku",
       bath: "kúpanie", medication: "liek · dávka", activity: "poradna · hra", task: "pripomienka", measure: "váha · teplota", note: "text",
     },
     diaper_types: { wet: "Mokrá", dirty: "Stolica", mixed: "Zmiešaná" },
     diaper_colours: { mustard: "Musťardová", yellow: "Žltá", green: "Zelená", brown: "Hnedá", black: "Čierna (mekónium)", red: "Červená", other: "Iná" },
-    feed_methods: { breast_left: "Ľavý prs", breast_right: "Pravý prs", bottle_expressed: "Fľaša – odstriekané", bottle_formula: "Fľaša – umelé", pump: "Odsávanie" },
-    quick_feed_methods: { breast_left: "Ľavý prs", breast_right: "Pravý prs", bottle_expressed: "fľaša", bottle_formula: "umelé", pump: "odsávanie" },
-    measure_kinds: { weight_g: "Hmotnosť (g)", temp_c: "Teplota (°C)", vitd_iu: "Vitamín D (IU)" },
+    feed_methods: { breast_left: "Ľavý prs", breast_right: "Pravý prs", bottle_expressed: "Fľaša – odstriekané", bottle_formula: "Fľaša – umelé" },
+    quick_feed_methods: { breast_left: "Ľavý prs", breast_right: "Pravý prs", bottle_expressed: "fľaša", bottle_formula: "umelé" },
+    pump_sides: { left: "Ľavý", right: "Pravý", both: "Oboje" },
+    measure_kinds: { weight_g: "Hmotnosť (g)", height_cm: "Výška (cm)", temp_c: "Teplota (°C)", vitd_iu: "Vitamín D (IU)" },
     fields: {
       user: "Kto zaznamenal", at: "Čas", diaper_type: "Typ", diaper_colour: "Farba stolice", feed_method: "Spôsob",
       feed_minutes: "Minúty", feed_ml: "ml", swallows: "Počuté prehlt-y", end_at: "Koniec",
+      pump_ml: "Odstriekané (ml)", fed_ml: "Dieťa vypilo (ml)", pump_side: "Prs", expires_on: "K spotrebe",
+      source_pump_id: "Z ktorej zásoby",
       date: "Dátum", time: "Čas",
       measure_kind: "Čo meriame", value: "Hodnota", med_name: "Liek", dose: "Dávka", activity: "Aktivita", note: "Poznámka",
     },
@@ -52,6 +56,10 @@ const I18N = {
     save: "Uložiť", cancel: "Zrušiť", delete: "Vymazať", edit: "Upraviť", none: "—", now: "teraz",
     confirmDelete: "Vymazať?", confirmDelete2: "Naozaj vymazať",
     startSleep: "Spustiť spánok", stopSleep: "Ukončiť spánok", stopFeed: "Ukončiť kŕmenie",
+    startPump: "Spustiť odsávanie", stopPump: "Ukončiť odsávanie", pumpRunning: "Odsávanie beží", pumpDrank: "vypila {n} ml",
+    stashTitle: "Zásobník mlieka", stashEmpty: "V zásobe zatiaľ nič.", stashExpired: "po lehote", stashUseBy: "k spotrebe {d}",
+    stashShort: "Fľaše odstriekaného mlieka presahujú záznamy o odsávaní o {n} ml.",
+    pickAuto: "— najstaršia zásoba (FIFO)", pickLeft: "zostáva {n} ml", pickNone: "(v zásobe nič)",
     sleepRunning: "Spánok beží", feedRunning: "Kojenie beží", since: "od",
     startWalk: "Spustiť prechádzku", stopWalk: "Ukončiť prechádzku", walkRunning: "Prechádzka beží",
     startBath: "Spustiť kúpeľ", stopBath: "Ukončiť kúpeľ", bathRunning: "Kúpeľ beží",
@@ -62,9 +70,9 @@ const I18N = {
     running: "beží", stop: "Zastaviť",
     today: "Dnes", yesterday: "Včera", week: "7 dní", days14: "14 dní", days30: "30 dní", day: "Deň",
     summaryTitle: "Dnes", entriesTitle: "Záznamy", statsTitle: "Grafy", insightsTitle: "Tipy a trendy", tableTitle: "Denný prehľad",
-    stat: { nappies: "Plienky", feeds: "Kŕmenia", sleep: "Spánok", care: "Starostlivosť", weight: "Hmotnosť", notes: "Poznámky", ml: "Odstriekané" },
-    table: { date: "Deň", wet: "Mokré", dirty: "Stolice", feeds: "Kŕmenia", sleep: "Spánok (h)", weight: "Hmotnosť" },
-    chart: { output: "Odpady", feeds: "Kŕmenia", sleep: "Spánok", weight: "Hmotnosť", care: "Starostlivosť" },
+    stat: { nappies: "Plienky", feeds: "Kŕmenia", sleep: "Spánok", care: "Starostlivosť", weight: "Hmotnosť", notes: "Poznámky", ml: "Odstriekané", pumping: "Odsávanie", bank: "Zásoba" },
+    table: { date: "Deň", wet: "Mokré", dirty: "Stolice", feeds: "Kŕmenia", pumping: "Odsávané", sleep: "Spánok (h)", weight: "Hmotnosť" },
+    chart: { output: "Odpady", feeds: "Kŕmenia", pumps: "Odsávanie", sleep: "Spánok", weight: "Hmotnosť", length: "Výška", care: "Starostlivosť" },
     noData: "Zatiaľ málo údajov.", empty: "Zatiaľ žiadne záznamy.", loadMore: "Načítať staršie",
     offline: "Uložené offline – skúsime znova, keď bude sieť.",
     ageOne: "deň", ageFew: "dni", ageMany: "dní", ageLabel: "Vek",
@@ -151,6 +159,9 @@ const I18N = {
       weightOk: "Prírastok je nad 10. percentilom WHO normy rýchlosti rastu.",
       weightWatch: "Prírastok medzi 5. a 10. percentilom – sledujte a konzultujte s pediatrom.",
       weightLow: "Prírastok pod 5. percentilom WHO – kontaktujte pediatra.",
+      lenTitle: "Výška", lenBig: "{cm} cm",
+      lenBand: "WHO výška podľa veku (obálka pohlaví): pásmo {lo}–{hi} cm, medián {med} cm.",
+      lenBelow: "Naposledy nameraných {cm} cm je pod 3. percentilom WHO – poraďte sa s pediatrom.",
       weightFew: "Zatiaľ málo meraní na výpočet trendu.",
       regainTitle: "Hmotnosť voči počiatočnej", regainOk: "Posledná váha {last} g je nad počiatočnou {first} g.",
       regainWarn: "Vo veku {age} dní je váha {last} g stále pod počiatočnou {first} g. Väčšina detí je na pôrodnej hmotnosti do 3 týždňov.",
@@ -244,19 +255,23 @@ const I18N = {
     title: "Baby log",
     users: { others: "Others" },
     setup: { title: "Set up Lienka", sub: "Who cares for the baby, and when was the baby born? You can change this any time in Settings.", users: "Caregivers", addName: "Name (e.g. Mama)", add: "Add person", remove: "Remove", birth: "Birth date", birthSub: "Stays on your server — age and growth charts unlock once set.", save: "Save setup", saved: "Setup saved", needUser: "Enter at least one name.", badRejected: "Server rejected the values", failed: "Could not save — are you online?", renameNote: "Renaming relabels past entries too.", removedNote: "Removing someone keeps their existing entries under the old label.", },
-    kinds: { diaper: "Diaper", feed: "Feed", sleep: "Sleep", walk: "Walk", bath: "Bath", medication: "Medication", activity: "Activity", task: "Task", measure: "Measure", note: "Note" },
+    kinds: { diaper: "Diaper", feed: "Feed", sleep: "Sleep", pump: "Pumping", walk: "Walk", bath: "Bath", medication: "Medication", activity: "Activity", task: "Task", measure: "Measure", note: "Note" },
     kind_sub: {
-      diaper: "wet · dirty", feed: "timer · ml", sleep: "asleep / awake", walk: "outdoors",
+      diaper: "wet · dirty", feed: "timer · ml", sleep: "asleep / awake", pump: "milk supply",
+      walk: "outdoors",
       bath: "bath time", medication: "drug · dose", activity: "clinic · play", task: "reminder", measure: "weight · temp", note: "text",
     },
     diaper_types: { wet: "Wet", dirty: "Dirty", mixed: "Mixed" },
     diaper_colours: { mustard: "Mustard", yellow: "Yellow", green: "Green", brown: "Brown", black: "Black (meconium)", red: "Red", other: "Other" },
-    feed_methods: { breast_left: "Left breast", breast_right: "Right breast", bottle_expressed: "Bottle – expressed", bottle_formula: "Bottle – formula", pump: "Pumping" },
-    quick_feed_methods: { breast_left: "Left breast", breast_right: "Right breast", bottle_expressed: "bottle", bottle_formula: "formula", pump: "pump" },
-    measure_kinds: { weight_g: "Weight (g)", temp_c: "Temperature (°C)", vitd_iu: "Vitamin D (IU)" },
+    feed_methods: { breast_left: "Left breast", breast_right: "Right breast", bottle_expressed: "Bottle – expressed", bottle_formula: "Bottle – formula" },
+    quick_feed_methods: { breast_left: "Left breast", breast_right: "Right breast", bottle_expressed: "bottle", bottle_formula: "formula" },
+    pump_sides: { left: "Left", right: "Right", both: "Both" },
+    measure_kinds: { weight_g: "Weight (g)", height_cm: "Height (cm)", temp_c: "Temperature (°C)", vitd_iu: "Vitamin D (IU)" },
     fields: {
       user: "Logged by", at: "Time", diaper_type: "Type", diaper_colour: "Stool colour", feed_method: "Method",
       feed_minutes: "Minutes", feed_ml: "ml", swallows: "Swallows heard", end_at: "End",
+      pump_ml: "Expressed (ml)", fed_ml: "Baby drank (ml)", pump_side: "Breast", expires_on: "Use by",
+      source_pump_id: "From which bag",
       date: "Date", time: "Time",
       measure_kind: "What", value: "Value", med_name: "Medication", dose: "Dose", activity: "Activity", note: "Note",
     },
@@ -286,6 +301,10 @@ const I18N = {
     save: "Save", cancel: "Cancel", delete: "Delete", edit: "Edit", none: "—", now: "now",
     confirmDelete: "Delete?", confirmDelete2: "Really delete",
     startSleep: "Start sleep", stopSleep: "Stop sleep", stopFeed: "Stop feed",
+    startPump: "Start pumping", stopPump: "Stop pumping", pumpRunning: "Pumping running", pumpDrank: "drank {n} ml",
+    stashTitle: "Milk bank", stashEmpty: "No stored milk yet.", stashExpired: "expired", stashUseBy: "use by {d}",
+    stashShort: "Bottles of expressed milk exceed the pumping records by {n} ml.",
+    pickAuto: "— oldest bag first (FIFO)", pickLeft: "{n} ml left", pickNone: "(no milk in stock)",
     sleepRunning: "Sleep running", feedRunning: "Feed running", since: "since",
     startWalk: "Start walk", stopWalk: "Stop walk", walkRunning: "Walk running",
     startBath: "Start bath", stopBath: "Stop bath", bathRunning: "Bath running",
@@ -296,9 +315,9 @@ const I18N = {
     running: "running", stop: "Stop",
     today: "Today", yesterday: "Yesterday", week: "7 days", days14: "14 days", days30: "30 days", day: "Day",
     summaryTitle: "Today", entriesTitle: "Entries", statsTitle: "Charts", insightsTitle: "Tips & trends", tableTitle: "Daily summary",
-    stat: { nappies: "Nappies", feeds: "Feeds", sleep: "Sleep", care: "Care", weight: "Weight", notes: "Notes", ml: "Expressed" },
-    table: { date: "Day", wet: "Wet", dirty: "Dirty", feeds: "Feeds", sleep: "Sleep (h)", weight: "Weight" },
-    chart: { output: "Output", feeds: "Feeds", sleep: "Sleep", weight: "Weight", care: "Care" },
+    stat: { nappies: "Nappies", feeds: "Feeds", sleep: "Sleep", care: "Care", weight: "Weight", notes: "Notes", ml: "Expressed", pumping: "Pumping", bank: "Bank" },
+    table: { date: "Day", wet: "Wet", dirty: "Dirty", feeds: "Feeds", pumping: "Expressed", sleep: "Sleep (h)", weight: "Weight" },
+    chart: { output: "Output", feeds: "Feeds", pumps: "Pumping", sleep: "Sleep", weight: "Weight", length: "Length", care: "Care" },
     noData: "Not enough data yet.", empty: "No entries yet.", loadMore: "Load older",
     offline: "Saved offline – we will retry when the network is back.",
     ageOne: "day", ageFew: "days", ageMany: "days", ageLabel: "Age",
@@ -384,6 +403,9 @@ const I18N = {
       weightOk: "Gain is above the 10th centile of the WHO velocity standard.",
       weightWatch: "Gain between the 5th and 10th centile – monitor and consult your pediatrician.",
       weightLow: "Gain below the WHO 5th centile – contact your pediatrician.",
+      lenTitle: "Length", lenBig: "{cm} cm",
+      lenBand: "WHO length-for-age (sex-neutral envelope): band {lo}–{hi} cm, median {med} cm.",
+      lenBelow: "Last measured {cm} cm is below the WHO 3rd centile – discuss it with your pediatrician.",
       weightFew: "Not enough weigh-ins to compute a trend.",
       regainTitle: "Weight vs. initial", regainOk: "Latest weight {last} g is above the initial {first} g.",
       regainWarn: "At {age} days the weight {last} g is still below the initial {first} g. Most babies are back at birthweight by 3 weeks.",
@@ -516,15 +538,16 @@ const PATHS = {
   camera: "M9 5.8h1.7l1-1.8h2.6l1 1.8H18a1.6 1.6 0 0 1 1.6 1.6v9.7A1.6 1.6 0 0 1 18 18.7H6a1.6 1.6 0 0 1-1.6-1.6V7.4A1.6 1.6 0 0 1 6 5.8zM12 16.6a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6z",
   upload: "M12 15.5v-11M7.5 8.5l4.5-4.5 4.5 4.5M4.5 20.5h15",
   grip: "M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01",
+  pump: "M12 3.4c3.3 4 5.9 6.9 5.9 9.9a5.9 5.9 0 1 1-11.8 0c0-3 2.6-5.9 5.9-9.9zM9.7 15.4a2.3 2.3 0 0 0 2.3 2.3",
 };
 
-const KIND_ICONS = { diaper: "diaper", feed: "bottle", sleep: "moon", walk: "walk", bath: "bath", medication: "pill", activity: "star", task: "bell", measure: "scale", note: "note" };
-const KIND_ORDER = ["diaper", "feed", "sleep", "walk", "bath", "medication", "activity", "measure", "note"];
-const TIMER_KINDS = ["feed", "sleep", "walk", "bath", "activity"];
-const SELECT_DICT = { diaper_type: "diaper_types", diaper_colour: "diaper_colours", feed_method: "feed_methods", measure_kind: "measure_kinds" };
+const KIND_ICONS = { diaper: "diaper", feed: "bottle", sleep: "moon", pump: "pump", walk: "walk", bath: "bath", medication: "pill", activity: "star", task: "bell", measure: "scale", note: "note" };
+const KIND_ORDER = ["diaper", "feed", "sleep", "pump", "walk", "bath", "medication", "activity", "measure", "note"];
+const TIMER_KINDS = ["feed", "sleep", "pump", "walk", "bath", "activity"];
+const SELECT_DICT = { diaper_type: "diaper_types", diaper_colour: "diaper_colours", feed_method: "feed_methods", pump_side: "pump_sides", measure_kind: "measure_kinds" };
 const VIEWS = ["today", "log", "stats", "kontrola", "insights", "doctor"];
 const VIEW_ICONS = { today: "home", log: "list", stats: "chart", kontrola: "bell", insights: "bulb", doctor: "heart" };
-const CHART_TABS = ["output", "feeds", "sleep", "weight", "care"];
+const CHART_TABS = ["output", "feeds", "pumps", "sleep", "weight", "length", "care"];
 
 let lang = localStorage.getItem("baby.lang") || (navigator.language.startsWith("sk") ? "sk" : "en");
 let user = localStorage.getItem("baby.user") || "";  // resolved to the server's first USERS id in loadMeta()
@@ -971,7 +994,7 @@ function quickDefs() {
 function saveQuickDefs(list) { localStorage.setItem("baby.quickCustom", JSON.stringify(list)); }
 function newQuickUid() { return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-const T_START = [["sleep", "startSleep"], ["walk", "startWalk"], ["bath", "startBath"], ["activity", "startActivity"]];
+const T_START = [["pump", "startPump"], ["sleep", "startSleep"], ["walk", "startWalk"], ["bath", "startBath"], ["activity", "startActivity"]];
 function quickUniverse() {
   const ids = [];
   for (const m of (meta ? meta.feed_methods : [])) ids.push(`feed:${m}`);
@@ -1417,6 +1440,7 @@ function renderToday() {
 
   const right = h("div", { class: "view", style: "gap:14px" });
   right.append(statsCard(today));
+  if (summary && (Number(summary.bank_ml) > 0 || Number(today && today.pumps) > 0)) right.append(stashCard());
   right.append(nextFeedCard());
   right.append(lastEventsCard());
 
@@ -1529,6 +1553,7 @@ function statsCard(today) {
   const stats = [
     { label: t("stat.nappies"), value: `${num(today && today.wet) + num(today && today.dirty) + num(today && today.mixed)}`, sub: `${t("table.wet")} ${num(today && today.wet)} · ${t("table.dirty")} ${num(today && today.dirty)}`, hero: true },
     { label: t("stat.feeds"), value: String(num(today && today.feeds)), sub: `${num(today && today.feed_minutes)} min${num(today && today.feed_ml) ? ` · ${num(today && today.feed_ml)} ml` : ""}`, hero: true },
+    ...(today && (num(today.pumps) || num(today.pump_ml) || num(summary && summary.bank_ml)) ? [{ label: t("stat.pumping"), value: `${num(today.pump_ml)} ml`, sub: `${num(today.pumps)}× · ${t("stat.bank")} ${fmtNum(num(summary && summary.bank_ml))} ml`, hero: true }] : []),
     { label: t("stat.sleep"), value: `${(num(today && today.sleep_minutes) / 60).toFixed(1)} h`, sub: `${num(today && today.sleep_minutes)} min`, hero: true },
     { label: t("stat.care"), value: String(care), sub: "" },
     { label: t("stat.weight"), value: last ? `${last.value} g` : "—", sub: delta !== null ? `${delta > 0 ? "+" : ""}${delta} g` : "" },
@@ -1539,6 +1564,33 @@ function statsCard(today) {
     h("div", { class: "stats" }, ...stats.map((s) => h("div", { class: "stat" + (s.hero ? " hero" : "") },
       h("b", {}, s.value), h("span", {}, s.label), s.sub ? h("small", { class: "muted" }, s.sub) : null)))
   );
+}
+
+function stashCard() {
+  const card = h("section", { class: "card" }, h("div", { class: "cardhead" }, h("h2", {}, t("stashTitle"))));
+  api(API.stash).then((st) => {
+    const todayIso = isoDay(new Date());
+    const soonIso = isoDay(new Date(Date.now() + 14 * 864e5));
+    const rows = (st.bags || []).map((b) => {
+      let tag = null;
+      if (b.expires_on) {
+        const cls = b.expires_on < todayIso ? "tag bad" : b.expires_on <= soonIso ? "tag warn" : "tag";
+        tag = h("span", { class: cls }, b.expires_on < todayIso ? t("stashExpired") : t("stashUseBy", { d: b.expires_on.slice(5) }));
+      }
+      return h("div", { class: "stashrow" },
+        h("span", {}, fmtAt(b.at)),
+        tag,
+        h("span", { class: "spacer" }),
+        h("b", {}, `${fmtNum(b.free)} ml`),
+        h("span", { class: "muted", style: "margin-left:8px" }, `${fmtNum(b.pumped)} ml`));
+    });
+    card.append(h("div", { class: "stash" },
+      h("div", { class: "stashrow total" }, h("span", {}, t("stat.bank")), h("span", { class: "spacer" }), h("b", {}, `${fmtNum(st.balance)} ml`)),
+      ...rows,
+      !rows.length ? h("p", { class: "muted" }, t("stashEmpty")) : null,
+      st.short ? h("p", { class: "shortwarn" }, t("stashShort", { n: fmtNum(st.short) })) : null));
+  }).catch(() => card.append(h("p", { class: "muted" }, t("errors.network"))));
+  return card;
 }
 
 function nextFeedCard() {
@@ -1587,6 +1639,15 @@ function entryText(entry) {
     }
     if (entry.feed_ml) bits.push(`${entry.feed_ml} ml`);
     if (entry.swallows !== null && entry.swallows !== undefined) bits.push(`${entry.swallows}× 🤏`);
+  } else if (entry.kind === "pump") {
+    const running = entry.timer && !entry.end_at;
+    if (running) bits.push(`${t("pumpRunning")} ${fmtClock(entry.at)}`);
+    else {
+      if (entry.pump_side) bits.push(t(`pump_sides.${entry.pump_side}`));
+      if (entry.end_at) bits.push(`${fmtClock(entry.at)} → ${fmtClock(entry.end_at)} (${durLabel(entry)})`);
+    }
+    if (entry.pump_ml) bits.push(`${entry.pump_ml} ml`);
+    if (entry.fed_ml) bits.push(t("pumpDrank", { n: entry.fed_ml }));
   } else if (entry.kind === "sleep") {
     if (entry.end_at) bits.push(`${fmtClock(entry.at)} → ${fmtClock(entry.end_at)} (${durLabel(entry)})`);
     else bits.push(t("sleepRunning"));
@@ -1602,7 +1663,7 @@ function entryText(entry) {
   } else if (entry.kind === "task") {
     bits.push(entry.activity || t("kinds.task"));
   } else if (entry.kind === "measure") {
-    const suffix = { weight_g: " g", temp_c: " °C", vitd_iu: " IU" }[entry.measure_kind] || "";
+    const suffix = { weight_g: " g", height_cm: " cm", temp_c: " °C", vitd_iu: " IU" }[entry.measure_kind] || "";
     bits.push(`${entry.value}${suffix}`);
   } else if (entry.kind === "note") {
     bits.push(entry.note || "");
@@ -1881,6 +1942,38 @@ function drawChart() {
     const minutes = Math.round(total((d) => d.feed_minutes));
     const ml = Math.round(total((d) => d.feed_ml));
     foot = `<p class="legend"><span><span class="dot feed"></span>${t("table.feeds")} ${total((d) => d.feeds)}</span><span>${minutes} min${ml ? ` · ${ml} ml` : ""}</span></p>`;
+  } else if (chartTab === "pumps") {
+    const values = days.map((d) => Number(d.pump_ml) || 0);
+    if (!values.some((v) => v)) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
+    const max = niceMax(Math.max(...values));
+    body = gridLines(max);
+    days.forEach((day, index) => {
+      const pos = barPos(index, days.length);
+      if (values[index] > 0) {
+        const height = Math.max(2, (values[index] / max) * CPLOT);
+        const y = CBASE - height;
+        body += `<rect class="bar pump" rx="3" x="${pos.x.toFixed(1)}" y="${y.toFixed(1)}" width="${pos.width.toFixed(1)}" height="${height.toFixed(1)}"/>`;
+        body += `<text class="count" x="${(pos.x + pos.width / 2).toFixed(1)}" y="${Math.max(CTOP - 8, y - 6).toFixed(1)}" text-anchor="middle">${values[index]}</text>`;
+      }
+    });
+    // 3-day moving average of pumped volume: the supply trend the bars alone hide
+    if (days.length > 2) {
+      const ma = values.map((_, i) => {
+        const from = Math.max(0, i - 2);
+        const win = values.slice(from, i + 1).filter((v) => v > 0);
+        return win.length ? win.reduce((a, b) => a + b, 0) / win.length : null;
+      });
+      const pts = ma.map((v, i) => ({ i, v })).filter((p) => p.v !== null && p.v > 0);
+      if (pts.length > 1) {
+        const group = (CW - 2 * CM) / Math.max(days.length, 1);
+        const line = pts.map((p) => `${(CM + (p.i + 0.5) * group).toFixed(1)},${(CBASE - (p.v / max) * CPLOT).toFixed(1)}`).join(" ");
+        body += `<polyline class="line" points="${line}"/>`;
+      }
+    }
+    body += dayLabels(days);
+    const activeDays = values.filter((v) => v).length;
+    const avg = activeDays ? Math.round(total((d) => d.pump_ml) / activeDays) : 0;
+    foot = `<p class="legend"><span><span class="dot pump"></span>${t("kinds.pump")} ${Math.round(total((d) => d.pump_ml))} ml</span><span>Ø ${avg} ml/${t("day").toLowerCase()}</span><span>${t("stat.bank")}: ${fmtNum(Number(summary && summary.bank_ml) || 0)} ml</span></p>`;
   } else if (chartTab === "sleep") {
     const hours = days.map((d) => (Number(d.sleep_minutes) || 0) / 60);
     if (!hours.some((v) => v)) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
@@ -1913,6 +2006,38 @@ function drawChart() {
     });
     body += dayLabels(days);
     foot = `<p class="legend"><span><span class="dot care"></span>${t("kinds.walk")} ${total((d) => d.walks)} · ${t("kinds.bath")} ${total((d) => d.baths)} · ${t("kinds.medication")} ${total((d) => d.medications)} · ${t("kinds.activity")} ${total((d) => d.activities)}</span></p>`;
+  } else if (chartTab === "length") {
+    const points = days.map((d, i) => ({ i, date: d.date, v: Number(d.height_cm) })).filter((p) => Number.isFinite(p.v) && p.v > 20 && p.v < 130);
+    if (!points.length) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
+    const birth = meta && meta.birth_date ? meta.birth_date : null;
+    // WHO envelope for every plotted day where age is computable (S46/S47, 0–24 months)
+    const bands = birth ? days.map((d, i) => {
+      const b = lfaBand(ageAtDate(birth, d.date));
+      return b ? { i, lo: b.lo, mid: b.mid, hi: b.hi } : null;
+    }).filter(Boolean) : [];
+    const vals = points.map((p) => p.v).concat(...bands.map((b) => [b.lo, b.hi]));
+    const minV = Math.min(...vals), maxV = Math.max(...vals);
+    const span = maxV - minV;
+    const low = minV - Math.max(1, span * 0.25), high = maxV + Math.max(1, span * 0.25);
+    const scale = (v) => CTOP + ((high - v) / Math.max(high - low, 1)) * CPLOT;
+    const group = (CW - 2 * CM) / Math.max(days.length, 1);
+    const px = (i) => CM + (i + 0.5) * group;
+    body = `<line class="axis" x1="${CM}" y1="${CBASE}" x2="${CW - CM}" y2="${CBASE}"/>`;
+    if (bands.length > 1) {
+      const top = bands.map((b) => `${px(b.i).toFixed(1)},${scale(b.hi).toFixed(1)}`);
+      const bottom = bands.slice().reverse().map((b) => `${px(b.i).toFixed(1)},${scale(b.lo).toFixed(1)}`);
+      body += `<polygon class="band" points="${[...top, ...bottom].join(" ")}"/>`;
+      body += `<polyline class="refline" points="${bands.map((b) => `${px(b.i).toFixed(1)},${scale(b.mid).toFixed(1)}`).join(" ")}"/>`;
+    }
+    if (points.length > 1) body += `<polyline class="line" points="${points.map((p) => `${px(p.i).toFixed(1)},${scale(p.v).toFixed(1)}`).join(" ")}"/>`;
+    for (const p of points) {
+      body += `<circle class="point" cx="${px(p.i).toFixed(1)}" cy="${scale(p.v).toFixed(1)}" r="4.5"/>`;
+      body += `<text class="count" x="${px(p.i).toFixed(1)}" y="${Math.max(CTOP - 8, scale(p.v) - 10).toFixed(1)}" text-anchor="middle">${fmtNum(p.v)}</text>`;
+    }
+    body += dayLabels(days);
+    const lastP = points[points.length - 1], firstP = points[0];
+    const delta = points.length > 1 ? Math.round((lastP.v - firstP.v) * 10) / 10 : null;
+    foot = `<p class="legend"><span>${points.length}× · ${fmtNum(lastP.v)} cm${delta ? ` · Δ ${delta > 0 ? "+" : ""}${fmtNum(delta)} cm` : ""}</span>${bands.length > 1 ? `<span>${t("insights.lenTitle")}: WHO P3–P97</span>` : ""}</p>`;
   } else {
     const points = days.map((d, i) => ({ i, v: d.weight_g })).filter((p) => Number.isFinite(p.v));
     if (points.length < 1) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
@@ -1945,12 +2070,14 @@ function drawTable() {
   const area = $("tableArea");
   if (!area || !summary) return;
   const days = summary.days.slice(-statsDays).slice().reverse();
+  const hasPump = days.some((d) => Number(d.pump_ml) > 0);
   area.innerHTML = `<table><thead><tr>
     <th>${t("table.date")}</th><th>${t("table.wet")}</th><th>${t("table.dirty")}</th>
-    <th>${t("table.feeds")}</th><th>${t("table.sleep")}</th><th>${t("table.weight")}</th>
+    <th>${t("table.feeds")}</th>${hasPump ? `<th>${t("table.pumping")}</th>` : ""}<th>${t("table.sleep")}</th><th>${t("table.weight")}</th>
   </tr></thead><tbody>${days.map((d) => `<tr>
     <td>${d.date.slice(5)}</td><td>${d.wet + d.mixed}</td><td>${d.dirty + d.mixed}</td>
     <td>${d.feeds}<span class="muted"> ${Math.round(d.feed_minutes)}′</span></td>
+    ${hasPump ? `<td>${Number(d.pump_ml) || ""}</td>` : ""}
     <td>${(d.sleep_minutes / 60).toFixed(1)}</td><td>${d.weight_g ?? ""}</td></tr>`).join("")}</tbody></table>`;
 }
 
@@ -2175,7 +2302,7 @@ function kontrolaPlan(s, rows, ctx) {
       break;
     default:
       if (e0 && e0.value !== null && e0.value !== undefined) {
-        plan.fields.push({ label: t("kontrola.value"), old: `${fmtNum(e0.value)} ${e0.measure_kind === "weight_g" ? "g" : e0.measure_kind === "temp_c" ? "°C" : ""}`, neu: null });
+        plan.fields.push({ label: t("kontrola.value"), old: `${fmtNum(e0.value)} ${e0.measure_kind === "weight_g" ? "g" : e0.measure_kind === "height_cm" ? "cm" : e0.measure_kind === "temp_c" ? "°C" : ""}`, neu: null });
       }
       if (e0) {
         if (e0.feed_ml !== null && e0.feed_ml !== undefined) plan.fields.push({ label: t("fields.feed_ml"), old: `${e0.feed_ml} ml`, neu: null });
@@ -2413,6 +2540,10 @@ const SOURCES = {
     url: "https://www.health.gov.sk/Zdroje?/Sources/dokumenty/SDTP/standardy/Baby-friendly_Hospital_Initiative_Interdisciplinarna_oblast/Predchadzajuce_verzie/0031_Starostlivost_o_matku_a_novorodenca_podla_zasad_iniciativy_BFHI_-_podpora_vztahovej_vazby_a_laktaci.pdf" },
   S44: { label: "insights.srcWho", region: "WHO", title: "WHO Child Growth Standards — weight increments, girls 0–60 d",
     url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/weight-velocity/weight_inc_birth_to_60_days_girls.pdf" },
+  S46: { label: "insights.srcWho", region: "WHO", title: "WHO Child Growth Standards — length-for-age percentiles, girls birth to 2 years",
+    url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/length-height-for-age/lfa-girls-0-2-percentiles.pdf?sfvrsn=d5f0d7c1_5" },
+  S47: { label: "insights.srcWho", region: "WHO", title: "WHO Child Growth Standards — length-for-age percentiles, boys birth to 2 years",
+    url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/length-height-for-age/lfa-boys-0-2-percentiles.pdf?sfvrsn=6fef3f25_7" },
   S31: { label: "insights.srcNhs", region: "UK", title: "NHS — is my baby getting enough milk?",
     url: "https://www.nhs.uk/baby/breastfeeding-and-bottle-feeding/breastfeeding-problems/enough-milk/" },
   S43: { label: "insights.srcNhs", region: "UK", title: "NHS — breastfeeding: the first few days",
@@ -2435,6 +2566,7 @@ const SOURCES = {
    Values themselves are source-independent: we always keep the most conservative threshold. */
 const SRC_FOR = {
   weightVel: ["S44"],
+  len: ["S46", "S47"],
   regain: ["S45"],
   feeds: ["S122", "S124", "S125", "S43"],
   feedGap: ["S43", "S124"],
@@ -2503,6 +2635,28 @@ const REF = {
 function weightBand(ageDays) {
   for (const b of REF.weightBands) if (ageDays <= b.maxAge) return b;
   return null;
+}
+
+/* WHO CHS length-for-age, monthly percentiles in cm (S46 girls / S47 boys percentile tables,
+   values read straight from the published PDFs). The app does not track the baby's sex, so we
+   draw an honest sex-neutral envelope: lo = girls P3, hi = boys P97, mid = average of both P50s. */
+const WHO_LFA = [ // [month, lo girls P3, mid avg P50, hi boys P97]
+  [0, 45.6, 49.5, 53.4], [1, 50.0, 54.2, 58.4], [2, 53.2, 57.8, 62.2], [3, 55.8, 60.6, 65.3],
+  [4, 58.0, 63.0, 67.8], [5, 59.9, 65.0, 69.9], [6, 61.5, 66.7, 71.6], [7, 62.9, 68.3, 73.2],
+  [8, 64.3, 69.7, 74.7], [9, 65.6, 71.1, 76.2], [10, 66.8, 72.4, 77.6], [11, 68.0, 73.7, 78.9],
+  [12, 69.2, 74.9, 80.2], [13, 70.3, 76.1, 81.5], [14, 71.3, 77.2, 82.7], [15, 72.4, 78.3, 83.9],
+  [16, 73.3, 79.4, 85.1], [17, 74.3, 80.5, 86.2], [18, 75.2, 81.5, 87.3], [19, 76.2, 82.5, 88.4],
+  [20, 77.0, 83.5, 89.5], [21, 77.9, 84.4, 90.5], [22, 78.7, 85.3, 91.6], [23, 79.6, 86.2, 92.6],
+  [24, 80.3, 87.1, 93.6],
+];
+function lfaBand(ageDays) {
+  if (ageDays === null || !Number.isFinite(ageDays) || ageDays < 0 || ageDays > 731) return null;
+  const m = ageDays / 30.4375;
+  const i = Math.min(Math.floor(m), 23);
+  const t = Math.min(Math.max(m - i, 0), 1);
+  const a = WHO_LFA[i], b = WHO_LFA[i + 1];
+  const mix = (x, y) => Math.round((x + (y - x) * t) * 10) / 10;
+  return { lo: mix(a[1], b[1]), mid: mix(a[2], b[2]), hi: mix(a[3], b[3]) };
 }
 
 function fmtAt(at) {
@@ -2997,7 +3151,7 @@ function analyzeSignals(rows, completed, ageDays, nowStamp) {
       const dur = effMinutes(r, r.end_at);
       if (r.kind === "sleep" && dur && dur > 1080) add("warn", "sigLongSleepTitle", { n: dur, at: fmtAt(r.at) }, r.id);
       if (r.kind === "feed" && dur && dur > 180) add("warn", "sigLongFeedTitle", { n: dur, at: fmtAt(r.at) }, r.id);
-      if ((r.kind === "walk" || r.kind === "bath" || r.kind === "activity") && dur && dur > 240) add("info", "sigLongTimerTitle", { kind, n: dur }, r.id);
+      if ((r.kind === "walk" || r.kind === "bath" || r.kind === "activity" || r.kind === "pump") && dur && dur > 240) add("info", "sigLongTimerTitle", { kind, n: dur }, r.id);
     }
     if (r.kind === "feed" && Number.isFinite(r.feed_ml)) {
       const ageMl = ageAtDate(birthDate, r.at.slice(0, 10));
@@ -3204,6 +3358,21 @@ async function renderInsights() {
     }
   } else {
     addCard(insightCard("measure", t("insights.weightTitle"), "", t("insights.weightFew"), srcTag("tagMeasured")));
+  }
+
+  // length vs WHO LFA sex-neutral envelope (S46/S47): girls P3 → boys P97
+  const heights = (summary.heights || []).filter((x) => Number.isFinite(x.value) && x.value > 20 && x.value < 130);
+  if (heights.length) {
+    const lastH = heights[heights.length - 1];
+    const band = meta && meta.birth_date ? lfaBand(ageAtDate(meta.birth_date, lastH.date)) : null;
+    if (band) {
+      const below = lastH.value < band.lo;
+      addCard(insightCard("measure", t("insights.lenTitle"), t("insights.lenBig", { cm: fmtNum(lastH.value) }),
+        `${t("insights.lenBand", { lo: fmtNum(band.lo), hi: fmtNum(band.hi), med: fmtNum(band.mid) })}${below ? " " + t("insights.lenBelow", { cm: fmtNum(lastH.value) }) : ""}`,
+        srcTag(pickSrc(SRC_FOR.len), below ? "bad" : "ok"), below ? "bad" : "ok", "card.length"));
+    } else {
+      addCard(insightCard("measure", t("insights.lenTitle"), t("insights.lenBig", { cm: fmtNum(lastH.value) }), "", srcTag("tagMeasured"), "", "card.length"));
+    }
   }
 
   // feeds per day + gaps vs NHS first-few-days (S43)
@@ -3517,6 +3686,17 @@ function fieldSpec(kind, entry = null) {
       { name: "feed_minutes", type: "stepper", step: 1 },
       { name: "feed_ml", type: "stepper", step: 5 },
       { name: "swallows", type: "stepper", step: 1 },
+      { name: "source_pump_id", type: "pump_pick", optional: true, full: true },
+      { name: "end_at", type: "datetime", optional: true },
+      { name: "note", type: "text", full: true },
+    );
+  } else if (kind === "pump") {
+    specs.push(
+      { name: "at", type: "datetime" },
+      { name: "pump_side", type: "seg", options: meta.pump_sides, optional: true, full: true },
+      { name: "pump_ml", type: "stepper", step: 10 },
+      { name: "fed_ml", type: "stepper", step: 5 },
+      { name: "expires_on", type: "date", optional: true },
       { name: "end_at", type: "datetime", optional: true },
       { name: "note", type: "text", full: true },
     );
@@ -3640,6 +3820,31 @@ function openEntryDialog(kind, entry = null, atPreset = null) {
           time.value = localTime(now);
         }
       }
+    } else if (spec.type === "date") {
+      input = document.createElement("input");
+      input.type = "date";
+    } else if (spec.type === "pump_pick") {
+      // bottle provenance: which pumping session this expressed milk came from (default: FIFO draw)
+      input = document.createElement("select");
+      const ph = document.createElement("option");
+      ph.value = ""; ph.textContent = t("pickAuto");
+      input.append(ph);
+      const wantId = entry && entry.source_pump_id ? String(entry.source_pump_id) : "";
+      api(API.stash).then((st) => {
+        const bags = (st.bags || []).filter((b) => b.free > 0 || String(b.id) === wantId);
+        if (!bags.length) {
+          const none = document.createElement("option");
+          none.value = ""; none.disabled = true; none.textContent = t("pickNone");
+          input.append(none);
+        }
+        for (const b of bags) {
+          const opt = document.createElement("option");
+          opt.value = String(b.id);
+          opt.textContent = `${fmtAt(b.at)} · ${t("pickLeft", { n: fmtNum(b.free) })}`;
+          input.append(opt);
+        }
+        if (wantId && input.querySelector(`option[value="${wantId}"]`)) input.value = wantId;
+      }).catch(() => { /* offline: the FIFO default still applies server-side */ });
     } else {
       input = document.createElement("input");
       input.type = spec.type;
@@ -3758,6 +3963,16 @@ function openEntryDialog(kind, entry = null, atPreset = null) {
     endIn._time.addEventListener("input", markManualEnd);
   }
 
+  // the provenance picker only applies to bottles of expressed milk
+  const srcHolder = values.source_pump_id;
+  const methodSeg = values.feed_method && values.feed_method.input;
+  if (srcHolder && methodSeg) {
+    const srcRow = srcHolder.input.closest(".field");
+    const syncSrcVis = () => { if (srcRow) srcRow.classList.toggle("hidden", methodSeg.dataset.value !== "bottle_expressed"); };
+    methodSeg.addEventListener("click", () => setTimeout(syncSrcVis, 0));
+    syncSrcVis();
+  }
+
   const del = $("sheetDelete");
   del.classList.toggle("hidden", !entry);
   delete del.dataset.armed;
@@ -3802,6 +4017,11 @@ function submitEntry(event) {
     if (raw !== "") body[spec.name] = raw;
     else if (entry) body[spec.name] = "";
     else if (spec.type === "datetime") body[spec.name] = raw;
+  }
+  // a provenance link only makes sense on expressed-milk bottles: drop it (or clear it on edit) otherwise
+  if (kind === "feed" && body.feed_method && body.feed_method !== "bottle_expressed") {
+    if (entry && entry.source_pump_id) body.source_pump_id = "";
+    else delete body.source_pump_id;
   }
 
   if (dialogState.scaleCtl) {
@@ -4433,8 +4653,13 @@ async function refresh() {
   await Promise.all([loadSummary(), loadTasks(), (async () => {
     if (view === "today") {
       try {
-        const rows = await loadEntries({ from: isoDay(new Date()), kind: "feed", limit: 50 });
-        const done = rows.filter((r) => !(r.timer && !r.end_at));
+        const [feeds, pumps] = await Promise.all([
+          loadEntries({ from: isoDay(new Date()), kind: "feed", limit: 50 }),
+          loadEntries({ from: isoDay(new Date()), kind: "pump", limit: 50 }),
+        ]);
+        const done = [...feeds.filter((r) => !(r.timer && !r.end_at)),
+                      ...pumps.filter((r) => r.fed_ml > 0 && !(r.timer && !r.end_at))];  // a combined session fed the baby too
+        done.sort((a, b) => String(b.at).localeCompare(String(a.at)));
         lastFeedAt = done.length ? done[0].end_at || done[0].at : null;
       } catch { lastFeedAt = null; }
     }

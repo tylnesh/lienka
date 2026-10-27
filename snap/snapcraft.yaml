@@ -1,9 +1,9 @@
 name: lienka
 title: Lienka — baby log
-version: "1.22"
+version: "1.23"
 summary: Self-hosted baby tracker — one SQLite file, a PWA for the whole family
 description: |
-  Lienka is a self-hosted baby tracker (nappies, feeds, sleep, walks, baths,
+  Lienka is a self-hosted baby tracker (nappies, feeds, pumping & milk bank, sleep, walks, baths,
   medications, measurements, notes) shared live between the caregivers' phones.
   The whole state is one SQLite file on your own machine — no cloud, no accounts,
   no telemetry. The server hosts an installable PWA: open http://this-machine:8472/
