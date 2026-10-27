@@ -17,6 +17,10 @@ Standard library only (runs anywhere, e.g. in python:3.12-alpine). One SQLite fi
                 (both env values are first-run defaults only — once saved in the app's Settings /
                  setup card they live in the DB `settings` table and those win from then on)
     TZ          container timezone; event times are wall-clock local time
+    LIENKA_LLM_PROBE_HOSTS
+                comma-separated hosts (host or host:port) scanned by the AI runner
+                auto-detection next to localhost — e.g. a Docker bridge IP or the host
+                machine when running in a snap / its own network namespace
 
 API:
     GET    /api/meta
@@ -235,6 +239,73 @@ def init_db() -> None:
 LLM_PATH = os.path.join(DATA, "llm.json")
 LLM_PROVIDERS = ("off", "openai", "anthropic", "custom")
 LLM_PRESET_BASES = {"openai": "https://api.openai.com/v1", "anthropic": "https://api.anthropic.com"}
+
+# /api/llm/detect scans localhost (plus LIENKA_LLM_PROBE_HOSTS, comma-separated host or host:port)
+# for the default ports of common local LLM runners. OpenAI-compatible servers answer GET {base}/models
+# with {"data": [...]}; Ollama additionally lists models on native /api/tags at the server root.
+LLM_RUNNER_PORTS = [
+    ("Ollama", 11434),
+    ("LM Studio", 1234),
+    ("vLLM", 8000),
+    ("llama.cpp / LocalAI", 8080),
+    ("Jan", 1337),
+    ("GPT4All", 4892),
+    ("KoboldCpp", 5001),
+]
+
+
+def llm_probe_targets():
+    hosts, targets, seen = ["127.0.0.1"], [], set()
+    for extra in os.environ.get("LIENKA_LLM_PROBE_HOSTS", "").split(","):
+        extra = extra.strip()
+        if extra and extra not in hosts:
+            hosts.append(extra)
+    for host in hosts:
+        if ":" in host:  # explicit host:port — one endpoint, label from the known port map
+            port = host.rsplit(":", 1)[1]
+            label = next((n for n, p in LLM_RUNNER_PORTS if str(p) == port), "LLM")
+            if host not in seen:
+                targets.append((label, "http://%s/v1" % host))
+                seen.add(host)
+        else:
+            for name, port in LLM_RUNNER_PORTS:
+                key = "%s:%d" % (host, port)
+                if key not in seen:
+                    targets.append((name, "http://%s/v1" % key))
+                    seen.add(key)
+    return targets
+
+
+def llm_probe_runner(name, base_url, timeout=1.2):
+    """Probe one candidate endpoint; returns {name, base_url, models} when it looks like an LLM API."""
+    models, serving = [], False
+    base_url = base_url.strip().rstrip("/")[:200]
+    try:
+        with urlopen(Request(base_url + "/models", method="GET", headers={"Accept": "application/json"}), timeout=timeout) as resp:
+            data = json.loads(resp.read(600_000).decode("utf-8", "replace"))
+        items = data.get("data") if isinstance(data, dict) and isinstance(data.get("data"), list) else \
+            (data.get("models") if isinstance(data, dict) else None)
+        for m in items or []:
+            mid = (m.get("id") or m.get("name")) if isinstance(m, dict) else (m if isinstance(m, str) else None)
+            if isinstance(mid, str) and mid and mid not in models:
+                models.append(mid)
+        serving = isinstance(items, list)  # JSON in the OpenAI shape = something is serving here
+    except Exception:  # noqa: BLE001 - probes are best-effort
+        pass
+    if base_url.endswith("/v1"):
+        try:  # some Ollama builds return an empty OpenAI list; native tags endpoint is authoritative
+            with urlopen(Request(base_url[:-3].rstrip("/") + "/api/tags", method="GET"), timeout=timeout) as resp:
+                data = json.loads(resp.read(600_000).decode("utf-8", "replace"))
+            for m in (data.get("models") if isinstance(data, dict) else None) or []:
+                nm = m.get("name") if isinstance(m, dict) else (m if isinstance(m, str) else None)
+                if isinstance(nm, str) and nm and nm not in models:
+                    models.append(nm)
+                    serving = True
+        except Exception:  # noqa: BLE001
+            pass
+    if not serving:
+        return None
+    return {"name": name[:60], "base_url": base_url, "models": models[:40]}
 SCALE_PROMPT = ("The photo shows the digital display of a baby scale; the seven-segment digits may look "
                 "sideways or upside down. Report the number exactly as printed (kilograms, keep every "
                 "digit and the decimal point), e.g. 3.973 or 4.009. Reply with only that number. "
@@ -1404,14 +1475,27 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001 - surface config errors to the settings UI
                 self._json(HTTPStatus.OK, {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200]})
         elif path == "/api/llm/detect":
-            found = []
+            body, _ = self._read_json()
+            spec, urls = [], (body.get("urls") if isinstance(body, dict) else None)
+            if isinstance(urls, list) and urls:  # explicit probe list (used by tests; same shape as the reply)
+                for u in urls[:16]:
+                    if isinstance(u, dict) and isinstance(u.get("base_url"), str) and u["base_url"].strip():
+                        spec.append((str(u.get("name") or "LLM")[:60], u["base_url"].strip()[:200]))
+            if not spec:
+                spec = llm_probe_targets()
+            runners = []
             try:
-                with urlopen(Request("http://localhost:11434/api/tags", method="GET"), timeout=2) as resp:
-                    data = json.loads(resp.read(200_000).decode("utf-8"))
-                found = [m.get("name") for m in data.get("models", []) if isinstance(m, dict) and m.get("name")][:40]
+                from concurrent.futures import ThreadPoolExecutor  # stdlib only, no cold-start cost elsewhere
+                with ThreadPoolExecutor(max_workers=min(8, len(spec))) as pool:
+                    for r in pool.map(lambda t: llm_probe_runner(*t), spec):
+                        if r:
+                            runners.append(r)
             except Exception:  # noqa: BLE001 - detection is best-effort
                 pass
-            self._json(HTTPStatus.OK, {"found": found, "base_url": "http://localhost:11434/v1"})
+            # found/base_url kept for the pre-multi-runner client: first runner wins
+            self._json(HTTPStatus.OK, {"runners": runners,
+                                       "found": runners[0]["models"] if runners else [],
+                                       "base_url": runners[0]["base_url"] if runners else ""})
         elif path == "/api/llm/models":
             # Pull the model list from an endpoint (body overrides take precedence over saved config),
             # so the settings UI can offer a dropdown before anything is generated for the first time.

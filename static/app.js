@@ -146,7 +146,7 @@ const I18N = {
       qkGroupsSub: "Nadpis zlúči dlaždice do sekcie; medzera pridá prázdne políčko v mriežke.",
       qkGroupPh: "názov skupiny (napr. Večer)", qkGroupAdd: "Pridať skupinu", qkGapAdd: "Pridať medzeru", qkGap: "Prázdne miesto",
       gridTitle: "Poradie na karte Dnes", gridSub: "Zaškrtni, ktoré dlaždice sa zobrazujú. Poradie meníš ťahaním za úchytku; na klávesnici úchytku zameraj a stlač ↑ alebo ↓.", qkDrag: "Uchytiť a presunúť",
-      llm: "AI asistent", llmSub: "Voliteľné. OpenAI, Anthropic alebo akékoľvek OpenAI-kompatibilné API – napr. lokálny Ollama snap.", llmOff: "Vypnutý", llmCustom: "Vlastné URL", llmModelPh: "alebo zadaj názov modelu ručne", llmKeyKeep: "•••••••• (prázdne = nezmeniť)", llmKeyPh: "API kľúč", llmTest: "Test", llmTesting: "Testujem…", llmTestOk: "✓ Odpoveď:", llmTestFail: "✗ Test zlyhal:", llmDetect: "Nájsť lokálny Ollama", llmDetected: "Nájdených modelov: {n} – vyber v menu Model", llmNone: "Lokálny Ollama nenájdený", llmSaveFail: "Uloženie zlyhalo", llmNote: "Kľúč ostáva na serveri (súbor 0600). Tipy sú aj naďalej deterministické – AI sa volá len po nastavení.",
+      llm: "AI asistent", llmSub: "Voliteľné. OpenAI, Anthropic alebo akékoľvek OpenAI-kompatibilné API – napr. lokálny Ollama, LM Studio či llama.cpp.", llmOff: "Vypnutý", llmCustom: "Vlastné URL", llmModelPh: "alebo zadaj názov modelu ručne", llmKeyKeep: "•••••••• (prázdne = nezmeniť)", llmKeyPh: "API kľúč", llmTest: "Test", llmTesting: "Testujem…", llmTestOk: "✓ Odpoveď:", llmTestFail: "✗ Test zlyhal:", llmDetect: "Nájsť lokálne AI", llmDetected: "Nájdených modelov: {n} – vyber v menu Model", llmNone: "Nenašlo sa žiadne lokálne AI (Ollama, LM Studio, llama.cpp…)", llmPickRunner: "Nájdených {n} lokálnych serverov – klikni, ktorý sa má použiť:", llmApplied: "Použité: {name}", llmSaveFail: "Uloženie zlyhalo", llmNote: "Kľúč ostáva na serveri (súbor 0600). Tipy sú aj naďalej deterministické – AI sa volá len po nastavení.",
       llmSetup: "AI endpoint", llmSteps: "Zadaj adresu a stlač Test – overíme, že endpoint odpovedá, a stiahneme zoznam modelov do menu.", llmPick: "– najprv otestuj adresu –", llmModelsOk: "✓ {n} modelov načítaných z endpointu", llmNoModels: "Endpoint odpovedá, ale nevrátil žiadne modely – názov zapíš ručne.",
       remind: "Pripomienka kŕmenia", remindSub: "Upozorní, keď je kŕmenie dlho bez záznamu",
       trends: "Trendy", trendsSub: "Automaticky vynechá nepresné dni z trendov (napr. keď sme prvý deň začali večer).",
@@ -392,7 +392,7 @@ const I18N = {
       qkGroupsSub: "A heading huddles tiles into a section; a gap adds an empty cell in the grid.",
       qkGroupPh: "group name (e.g. Evening)", qkGroupAdd: "Add group", qkGapAdd: "Add gap", qkGap: "Empty space",
       gridTitle: "Today card layout", gridSub: "Toggle which tiles appear. Drag the handle to reorder; or focus the handle and press ↑ / ↓.", qkDrag: "Grab and move",
-      llm: "AI assistant", llmSub: "Optional. OpenAI, Anthropic or any OpenAI-compatible API – e.g. a local Ollama snap.", llmOff: "Off", llmCustom: "Custom URL", llmModelPh: "or type a model name manually", llmKeyKeep: "•••••••• (empty = keep)", llmKeyPh: "API key", llmTest: "Test", llmTesting: "Testing…", llmTestOk: "✓ Reply:", llmTestFail: "✗ Test failed:", llmDetect: "Detect local Ollama", llmDetected: "Found {n} model(s) – pick one in the Model dropdown", llmNone: "Local Ollama not found", llmSaveFail: "Save failed", llmNote: "The key stays on the server (0600 file). Tips stay deterministic – AI is only called once configured.",
+      llm: "AI assistant", llmSub: "Optional. OpenAI, Anthropic or any OpenAI-compatible API – e.g. a local Ollama, LM Studio or llama.cpp server.", llmOff: "Off", llmCustom: "Custom URL", llmModelPh: "or type a model name manually", llmKeyKeep: "•••••••• (empty = keep)", llmKeyPh: "API key", llmTest: "Test", llmTesting: "Testing…", llmTestOk: "✓ Reply:", llmTestFail: "✗ Test failed:", llmDetect: "Detect local AI", llmDetected: "Found {n} model(s) – pick one in the Model dropdown", llmNone: "No local AI found (Ollama, LM Studio, llama.cpp…)", llmPickRunner: "Found {n} local server(s) – click the one to use:", llmApplied: "Using {name}", llmSaveFail: "Save failed", llmNote: "The key stays on the server (0600 file). Tips stay deterministic – AI is only called once configured.",
       llmSetup: "AI endpoint", llmSteps: "Enter the address and hit Test – we check the endpoint answers and load its model list into the dropdown.", llmPick: "– test the address first –", llmModelsOk: "✓ Loaded {n} models from the endpoint", llmNoModels: "Endpoint answered but listed no models – type the name manually.",
       remind: "Feed reminder", remindSub: "Alerts when a feed has not been logged for a while",
       trends: "Trends", trendsSub: "Automatically removes unreliable days from trends (e.g. first day started in the evening).",
@@ -4359,7 +4359,7 @@ function openSettings() {
         catch { /* offline: keep current view */ }
       })
   ));
-  if (llmCur.provider !== "off") body.append(llmSetupRow());
+  body.append(llmSetupRow());
 
   const trendFilter = trendFilterSetting();
   body.append(h("div", { class: "setrow" },
@@ -4604,6 +4604,7 @@ function openGridEditor() {
 /* ---------- LLM endpoint setup (address → test → model dropdown) ---------- */
 
 let llmModelList = []; // models pulled from the endpoint by the last Test / Detect (kept while the sheet stays open)
+let llmAutoScanned = false; // passive runner scan runs once per app session
 
 function llmSetupRow() {
   const cur = llmCfg || { provider: "off", base_url: "", model: "", has_key: false };
@@ -4650,27 +4651,49 @@ function llmSetupRow() {
     msg += t2 && t2.ok ? ` · ${t("settings.llmTestOk")} ${t2.reply} (${t2.ms} ms)` : ` · ${t("settings.llmTestFail")} ${(t2 && t2.error) || ""}`;
     status.textContent = msg;
   } }, t("settings.llmTest"));
-  const btnDetect = h("button", { type: "button", class: "mini ghost wide", onclick: async () => {
-    status.textContent = t("settings.llmTesting");
-    const d = await api(`${API.llm}/detect`, { method: "POST", body: "{}" }).catch(() => null);
-    if (!d || !d.found.length) { status.textContent = t("settings.llmNone"); return; }
-    base.value = d.base_url;
-    llmModelList = d.found;
-    if (!modelIn.value) modelIn.value = d.found[0];
-    await saveLlm({});
+  const runnerRow = h("div", { class: "fieldrow hidden" });
+  async function applyRunner(r) {
+    base.value = r.base_url;
+    llmModelList = Array.isArray(r.models) ? r.models : [];
+    if (!modelIn.value.trim() && llmModelList.length) modelIn.value = llmModelList[0];
+    await saveLlm({ provider: "custom" });
     fillSel();
-    status.textContent = t("settings.llmDetected", { n: d.found.length });
-  } }, t("settings.llmDetect"));
+    runnerRow.innerHTML = ""; runnerRow.classList.add("hidden");
+    status.textContent = t("settings.llmApplied", { name: r.name }) +
+      (llmModelList.length ? ` · ${t("settings.llmDetected", { n: llmModelList.length })}` : "");
+  }
+  function showRunners(runners) {
+    box.classList.remove("hidden"); // while provider is off, this row only exists because we found something
+    runnerRow.innerHTML = "";
+    for (const r of runners) runnerRow.append(h("button", { type: "button", class: "mini wide", style: "white-space:nowrap", onclick: () => applyRunner(r) }, `${r.name} · ${r.models.length || "?"}`));
+    runnerRow.classList.remove("hidden");
+    status.textContent = t("settings.llmPickRunner", { n: runners.length });
+  }
+  async function detectRunners(auto) {
+    if (!auto) status.textContent = t("settings.llmTesting");
+    const d = await api(`${API.llm}/detect`, { method: "POST", body: "{}" }).catch(() => null);
+    const runners = d && Array.isArray(d.runners) ? d.runners.filter((r) => r && r.base_url) : [];
+    if (!runners.length) { if (!auto) status.textContent = t("settings.llmNone"); return; }
+    if (runners.length === 1 && !auto) await applyRunner(runners[0]);
+    else showRunners(runners);
+  }
+  // Auto-detection: scan once per session when the sheet opens with AI switched off — chips only,
+  // nothing is applied until a runner is clicked, so we never touch config behind the user's back.
+  if (!llmAutoScanned && cur.provider === "off" && !cur.base_url) { llmAutoScanned = true; setTimeout(() => detectRunners(true), 400); }
+  const btnDetect = h("button", { type: "button", class: "mini ghost wide", onclick: () => detectRunners(false) }, t("settings.llmDetect"));
 
-  return h("div", { class: "setrow" },
+  const box = h("div", { class: "setrow" },
     h("span", { class: "lbl" }, h("b", {}, t("settings.llmSetup")), h("small", {}, t("settings.llmSteps"))),
     h("div", { class: "full" },
       h("div", { class: "fieldrow" }, base, btnTest, btnDetect),
+      runnerRow,
       h("div", { class: "fieldrow" }, modelSel, modelIn),
       key,
       status,
       h("small", { class: "hint" }, t("settings.llmNote")))
   );
+  if (cur.provider === "off") box.classList.add("hidden"); // hidden until auto-detect finds a runner (or the user turns AI on)
+  return box;
 }
 
 async function notify(text) {

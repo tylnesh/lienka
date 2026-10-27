@@ -38,4 +38,5 @@ jobs:
           python3 tools/tests/pump_api_test.py  http://localhost:8499
           python3 tools/tests/stash_api_test.py http://localhost:8500
           python3 tools/tests/tier_api_test.py  http://localhost:8501
+          python3 tools/tests/llm_discover_test.py   # self-contained: boots its own server on :8502
           kill $p1 $p2 $p3

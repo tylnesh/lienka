@@ -11,7 +11,7 @@ The client is a plain PWA (installable, offline shell) served by the same proces
 - **Charts** — output, feeds, pumping (daily supply, 3-day trend, bank), sleep, weight (WHO weight-velocity bands), length (WHO length-for-age P3–P97 envelope), care time; 7/14/30 days.
 - **Insights** — deterministic checks computed from your records against registered references (WHO, NHS, ABM, Slovak MZ SR guidance for BFHI care); no AI, no network calls, every threshold shows its source or is marked `[unsourced]`. Not medical advice.
 - **Doctor view** — pediatrician-question checklist generated from the same signals; copy to clipboard for the visit.
-- Recurring reminders with `.ics` export, CSV export, dark/light theme, SK + EN UI, optional scale-photo OCR for feeding weights, optional BYO-LLM assistant (off by default — keys stay server-side, see `server.py`).
+- Recurring reminders with `.ics` export, CSV export, dark/light theme, SK + EN UI, optional scale-photo OCR for feeding weights, optional BYO-LLM assistant that auto-detects local runners (Ollama, LM Studio, vLLM, llama.cpp/LocalAI, Jan, GPT4All, KoboldCpp) — off by default, keys stay server-side, see `server.py`.
 
 Writes are currently unauthenticated, so **keep the instance on a trusted network** (LAN or your private tunnel) — never port-forward it to the internet. A token/PIN gate is planned (see Roadmap).
 
@@ -56,6 +56,7 @@ All via environment variables (see `server.py` docstring for the canonical list)
 | `HTTP_PORT` | plain-HTTP `/ca.crt` sidecar (0 = off) | `8473` |
 | `CERT` / `KEY` / `CA_CERT` | TLS material, PEM | *(off = plain HTTP)* |
 | `TZ` | container timezone; timestamps are wall-clock local | — |
+| `LIENKA_LLM_PROBE_HOSTS` | extra hosts for AI auto-detection, comma-separated `host` or `host:port` (think Docker bridge IP, or the host machine from a snap) | localhost only |
 
 ## TLS options
 
