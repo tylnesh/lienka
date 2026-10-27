@@ -74,7 +74,7 @@ const I18N = {
     summaryTitle: "Dnes", entriesTitle: "Záznamy", statsTitle: "Grafy", insightsTitle: "Tipy a trendy", tableTitle: "Denný prehľad",
     stat: { nappies: "Plienky", feeds: "Kŕmenia", sleep: "Spánok", care: "Starostlivosť", weight: "Hmotnosť", notes: "Poznámky", ml: "Odstriekané", pumping: "Odsávanie", bank: "Zásoba" },
     table: { date: "Deň", wet: "Mokré", dirty: "Stolice", feeds: "Kŕmenia", pumping: "Odsávané", sleep: "Spánok (h)", weight: "Hmotnosť" },
-    chart: { output: "Plienky", feeds: "Kŕmenia", pumps: "Odsávanie", sleep: "Spánok", weight: "Hmotnosť", length: "Dĺžka", care: "Starostlivosť" },
+    chart: { output: "Plienky", feeds: "Kŕmenia", intake: "Príjem", intakeRef: "referencia {lo}–{hi} ml/deň", pumps: "Odsávanie", sleep: "Spánok", weight: "Hmotnosť", length: "Dĺžka", care: "Starostlivosť" },
     noData: "Zatiaľ málo údajov.", empty: "Zatiaľ žiadne záznamy.", loadMore: "Načítať staršie",
     offline: "Uložené offline – skúsime znova, keď bude sieť.",
     ageOne: "deň", ageFew: "dni", ageMany: "dní", ageLabel: "Vek",
@@ -321,7 +321,7 @@ const I18N = {
     summaryTitle: "Today", entriesTitle: "Entries", statsTitle: "Charts", insightsTitle: "Tips & trends", tableTitle: "Daily summary",
     stat: { nappies: "Nappies", feeds: "Feeds", sleep: "Sleep", care: "Care", weight: "Weight", notes: "Notes", ml: "Expressed", pumping: "Pumping", bank: "Bank" },
     table: { date: "Day", wet: "Wet", dirty: "Dirty", feeds: "Feeds", pumping: "Expressed", sleep: "Sleep (h)", weight: "Weight" },
-    chart: { output: "Output", feeds: "Feeds", pumps: "Pumping", sleep: "Sleep", weight: "Weight", length: "Length", care: "Care" },
+    chart: { output: "Output", feeds: "Feeds", intake: "Intake", intakeRef: "reference {lo}–{hi} ml/day", pumps: "Pumping", sleep: "Sleep", weight: "Weight", length: "Length", care: "Care" },
     noData: "Not enough data yet.", empty: "No entries yet.", loadMore: "Load older",
     offline: "Saved offline – we will retry when the network is back.",
     ageOne: "day", ageFew: "days", ageMany: "days", ageLabel: "Age",
@@ -551,7 +551,7 @@ const TIMER_KINDS = ["feed", "sleep", "pump", "walk", "bath", "activity"];
 const SELECT_DICT = { diaper_type: "diaper_types", diaper_colour: "diaper_colours", feed_method: "feed_methods", pump_side: "pump_sides", pump_storage: "pump_storages", measure_kind: "measure_kinds" };
 const VIEWS = ["today", "log", "stats", "kontrola", "insights", "doctor"];
 const VIEW_ICONS = { today: "home", log: "list", stats: "chart", kontrola: "bell", insights: "bulb", doctor: "heart" };
-const CHART_TABS = ["output", "feeds", "pumps", "sleep", "weight", "length", "care"];
+const CHART_TABS = ["output", "feeds", "intake", "pumps", "sleep", "weight", "length", "care"];
 
 let lang = localStorage.getItem("baby.lang") || (navigator.language.startsWith("sk") ? "sk" : "en");
 let user = localStorage.getItem("baby.user") || "";  // resolved to the server's first USERS id in loadMeta()
@@ -1979,6 +1979,53 @@ function drawChart() {
     const minutes = Math.round(total((d) => d.feed_minutes));
     const ml = Math.round(total((d) => d.feed_ml));
     foot = `<p class="legend"><span><span class="dot feed"></span>${t("table.feeds")} ${total((d) => d.feeds)}</span><span>${minutes} min${ml ? ` · ${ml} ml` : ""}</span></p>`;
+  } else if (chartTab === "intake") {
+    const values = days.map((d) => Number(d.feed_ml) || 0); // feeds incl. fed_ml from pumping sessions
+    if (!values.some((v) => v)) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
+    // typical daily range for age/weight (S119–S121), same rule as the milk hint in the feed dialog
+    let ref = null;
+    if (meta && meta.birth_date) {
+      const ageDays = ageAtDate(meta.birth_date, days[days.length - 1].date);
+      const wEntry = [...days].reverse().find((d) => Number(d.weight_g) > 500);
+      const r = milkRef(ageDays, wEntry ? Number(wEntry.weight_g) : null);
+      if (r && r.f > 0 && r.perLo > 0) ref = { lo: Math.round(r.perLo * r.f), hi: Math.round(r.perHi * r.f) };
+    }
+    const max = niceMax(Math.max(...values, ref ? ref.hi : 0));
+    body = gridLines(max);
+    if (ref) {
+      const ylo = CBASE - (ref.lo / max) * CPLOT;
+      const yhi = CBASE - (ref.hi / max) * CPLOT;
+      body += `<rect x="${CM}" y="${yhi.toFixed(1)}" width="${CW - 2 * CM}" height="${Math.max(0, ylo - yhi).toFixed(1)}" rx="4" fill="var(--accent)" opacity=".07"/>`;
+      body += `<line class="refline" x1="${CM}" y1="${yhi.toFixed(1)}" x2="${CW - CM}" y2="${yhi.toFixed(1)}"/>`;
+      body += `<line class="refline" x1="${CM}" y1="${ylo.toFixed(1)}" x2="${CW - CM}" y2="${ylo.toFixed(1)}"/>`;
+    }
+    days.forEach((day, index) => {
+      const pos = barPos(index, days.length);
+      if (values[index] > 0) {
+        const height = Math.max(2, (values[index] / max) * CPLOT);
+        const y = CBASE - height;
+        body += `<rect class="bar feed" rx="3" x="${pos.x.toFixed(1)}" y="${y.toFixed(1)}" width="${pos.width.toFixed(1)}" height="${height.toFixed(1)}"/>`;
+        body += `<text class="count" x="${(pos.x + pos.width / 2).toFixed(1)}" y="${Math.max(CTOP - 8, y - 6).toFixed(1)}" text-anchor="middle">${values[index]}</text>`;
+      }
+    });
+    if (days.length > 2) {
+      const ma = values.map((_, i) => {
+        const from = Math.max(0, i - 2);
+        const win = values.slice(from, i + 1).filter((v) => v > 0);
+        return win.length ? win.reduce((a, b) => a + b, 0) / win.length : null;
+      });
+      const pts = ma.map((v, i) => ({ i, v })).filter((p) => p.v !== null && p.v > 0);
+      if (pts.length > 1) {
+        const group = (CW - 2 * CM) / Math.max(days.length, 1);
+        const line = pts.map((p) => `${(CM + (p.i + 0.5) * group).toFixed(1)},${(CBASE - (p.v / max) * CPLOT).toFixed(1)}`).join(" ");
+        body += `<polyline class="line" points="${line}"/>`;
+      }
+    }
+    body += dayLabels(days);
+    const activeDays = values.filter((v) => v).length;
+    const avg = activeDays ? Math.round(total((d) => d.feed_ml) / activeDays) : 0;
+    foot = `<p class="legend"><span><span class="dot feed"></span>${t("chart.intake")} ${Math.round(total((d) => d.feed_ml))} ml</span><span>Ø ${avg} ml/${t("day").toLowerCase()}</span>` +
+      (ref ? `<span>${t("chart.intakeRef", { lo: ref.lo, hi: ref.hi })}</span>` : "") + `</p>`;
   } else if (chartTab === "pumps") {
     const values = days.map((d) => Number(d.pump_ml) || 0);
     if (!values.some((v) => v)) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
