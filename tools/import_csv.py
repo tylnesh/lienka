@@ -22,13 +22,8 @@ import csv
 import sqlite3
 import sys
 
-# entry columns that must stay NULL when the CSV cell is empty; everything else empty = NULL too
-MUST_BE_NULL = {c for c in (
-    "diaper_type", "diaper_colour", "feed_method", "feed_minutes", "feed_ml", "swallows", "end_at",
-    "pump_ml", "pump_side", "fed_ml", "source_pump_id", "expires_on",
-    "measure_kind", "value", "med_name", "dose", "activity", "task_id",
-    "scale_before_g", "scale_after_g", "photo_a", "photo_b", "updated", "note", "timer",
-)}
+# an empty CSV cell always means NULL — the export writes "" for every NULL, and no real value
+# (note text included) is an empty-but-meaningful string; a cell of e.g. one space survives.
 
 
 def metrics(conn, where=""):

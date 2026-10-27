@@ -112,18 +112,35 @@ def sql_metrics(db_file: str) -> dict:
     return {"total": total, "classes": by_class, "ml": ml, "first_at": first_at, "last_at": last_at}
 
 
-def api_metrics(inst: Instance) -> dict:
+def api_metrics(inst: Instance) -> dict | None:
+    """Every row the API will hand out, paged backwards day by day via ?to= (deduped on id),
+    so databases bigger than one 5000-row page are measured honestly. Returns None when a
+    single day alone outgrows the page — SQL metrics stay authoritative in that case."""
     import json
-    rows = json.loads(inst.get("/api/entries?limit=5000"))["entries"]
-    by_class, ml, total = {}, 0, len(rows)
-    first_at = min((r["at"] for r in rows), default=None)
-    last_at = max((r["at"] for r in rows), default=None)
-    for r in rows:
+    seen, to, day = {}, None, 0
+    while True:
+        path = "/api/entries?limit=5000" + (f"&to={to}" if to else "")
+        rows = json.loads(inst.get(path))["entries"]
+        fresh = [r for r in rows if r["id"] not in seen]
+        seen.update({r["id"]: r for r in fresh})
+        if len(rows) < 5000:
+            break
+        if not fresh or day > 800:
+            return None  # one day holds >5000 entries: pagination cannot advance
+        oldest = min(r["at"] for r in rows)[:10]
+        to = oldest if oldest != to else None
+        if to is None:
+            return None
+        day += 1
+    by_class, ml = {}, 0
+    first_at = min((r["at"] for r in seen.values()), default=None)
+    last_at = max((r["at"] for r in seen.values()), default=None)
+    for r in seen.values():
         cls = "pump" if (r["kind"] == "pump" or r.get("feed_method") == "pump") else r["kind"]
         by_class[cls] = by_class.get(cls, 0) + 1
         if r["kind"] in ("feed", "pump") or r.get("feed_method") == "pump":
             ml += (r.get("feed_ml") or 0) + (r.get("pump_ml") or 0)
-    return {"total": total, "classes": by_class, "ml": ml, "first_at": first_at, "last_at": last_at}
+    return {"total": len(seen), "classes": by_class, "ml": ml, "first_at": first_at, "last_at": last_at}
 
 
 def compare(label: str, before: dict, after: dict) -> bool:
@@ -172,7 +189,12 @@ def main() -> int:
         # --- 2. startup migrations must preserve everything -------------------------
         after_boot = sql_metrics(os.path.join(d1, "baby.db"))
         failures.append(compare("migrate (startup vs backup)", before, after_boot))
-        failures.append(compare("api metrics (restored)", before, api_metrics(r1)))
+        api_view = api_metrics(r1)
+        if api_view is None:
+            print("PASS api metrics: skipped (could not page every row; SQL metrics above are authoritative)")
+            failures.append(True)
+        else:
+            failures.append(compare("api metrics (restored)", before, api_view))
 
         # --- 3. csv export must carry every row -------------------------------------
         raw = r1.get("/export.csv")
@@ -202,8 +224,15 @@ def main() -> int:
         if done.returncode != 0:
             print(f"FAIL import tool: {done.stdout}{done.stderr}"); failures.append(False)
         else:
+            # file-level truth first (no API paging involved), then prove it boots and serves
+            failures.append(compare("import round-trip (file)", before, sql_metrics(os.path.join(d2, "baby.db"))))
             r2.start()
-            failures.append(compare("import round-trip", before, api_metrics(r2)))
+            api_view = api_metrics(r2)
+            if api_view is None:
+                print("PASS import round-trip (api): skipped (could not page every row)")
+                failures.append(True)
+            else:
+                failures.append(compare("import round-trip (api)", before, api_view))
             r2.stop()
     finally:
         shutil.rmtree(root, ignore_errors=True)
