@@ -74,7 +74,7 @@ const after = await page.evaluate(() => {
   return { hidden: sel.closest(".field").classList.contains("hidden"), options: [...sel.options].map((o) => o.textContent) };
 });
 check("picker visible for expressed bottle", after.hidden === false);
-check("FIFO placeholder + bag options with ml left", /oldest bag first/.test(after.options[0]) && after.options.some((o) => /ml left/.test(o)));
+check("FIFO placeholder + bag options with ml left", /fridge first/.test(after.options[0]) && after.options.some((o) => /ml left/.test(o)) && after.options.some((o) => /Fridge|Freezer/.test(o)));
 const bagId = await page.evaluate(() => {
   const sel = document.querySelector('#sheetBody select[name="source_pump_id"]');
   const opt = [...sel.options].find((o) => o.value !== "");
@@ -88,16 +88,45 @@ await page.waitForTimeout(900);
 const savedFeed = await page.evaluate(async () => (await (await fetch(`${location.pathname.replace(/\/$/, "")}/api/entries?kind=feed&limit=1`)).json()).entries[0]);
 check("saved bottle carries source_pump_id", String(savedFeed.source_pump_id) === String(bagId) && bagId !== "");
 
-// pump dialog: side, volumes and use-by date
+// pump dialog: side, storage tier with CDC-dated use-by, volumes
 await page.evaluate(() => openEntryDialog("pump"));
 await page.waitForTimeout(300);
 check("pump dialog has Use-by date field", await page.evaluate(() => !!document.querySelector('#sheetBody input[name="expires_on"][type="date"]')));
+const tierState = await page.evaluate(() => {
+  const seg = document.querySelector('#sheetBody [data-seg="pump_storage"]');
+  const exp = document.querySelector('#sheetBody input[name="expires_on"]');
+  const want = new Date(Date.now() + 4 * 864e5).toISOString().slice(0, 10);
+  return { fridgeOn: !!seg.querySelector('[data-seg-value="fridge"].on'), auto: exp.value === want, freezer: seg.querySelector('[data-seg-value="freezer"]')?.textContent };
+});
+check("pump dialog defaults to fridge + prefilled 4-day use-by", tierState.fridgeOn && tierState.auto);
+await page.click('#sheetBody [data-seg-value="freezer"]');
+await page.waitForTimeout(200);
+const frozenDate = await page.evaluate(() => {
+  const exp = document.querySelector('#sheetBody input[name="expires_on"]');
+  const want = new Date(Date.now() + 180 * 864e5).toISOString().slice(0, 10);
+  return exp.value === want;
+});
+check("switching to freezer re-dates use-by (+180 d)", frozenDate);
 await page.fill('#sheetBody input[name="pump_ml"]', "55");
 await page.click('#sheetBody [data-seg-value="right"]');
 await page.click("#sheetSave");
 await page.waitForTimeout(800);
 check("pump entry saved from dialog", /Pumping/.test(await page.textContent(".stats")));
 await page.evaluate(() => { document.querySelectorAll("dialog[open]").forEach((d) => d.close()); });
+
+// freeze-the-surplus ritual on the Today card: fridge leftovers become freshly dated freezer stock
+await page.evaluate(() => { location.hash = "#today"; });
+await page.waitForTimeout(700);
+const stashTxt1 = await page.textContent("#view-today");
+check("bank card groups by storage tier", /Fridge/.test(stashTxt1) && /Freezer/.test(stashTxt1));
+await page.locator("#view-today .cardhead button", { hasText: "Freeze" }).first().click();
+// Today refreshes on a poll, so the card may briefly re-mount empty — wait for the settled post-freeze pantry
+await page.waitForFunction(() => {
+  const groups = [...document.querySelectorAll("#view-today .stashgroup")];
+  return groups.length > 0 && !groups.some((g) => /Fridge/.test(g.textContent));
+}, null, { timeout: 12000 });
+check("after freezing, no fridge group header is left", true);
+check("freeze button gone when nothing left in fridge", (await page.locator("#view-today .cardhead button", { hasText: "Freeze" }).count()) === 0);
 
 // log: pump filter chip works end to end
 await page.evaluate(() => { location.hash = "#log"; });

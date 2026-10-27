@@ -76,21 +76,22 @@ def main() -> None:
         add(d + timedelta(hours=10, minutes=random.randint(0, 30)), "measure", U0,
             measure_kind="vitd_iu", value=400)
 
-        # milk bank story from day 3: morning pump (some bags stored with use-by dates),
-        # a linked bottle around noon, and a combined pump+feed session in the evening
+        # milk bank story from day 3, multi-tier like real life: bags start in the fridge jug
+        # (CDC use-by +4 d) and roughly every other day the evening surplus is pooled to the
+        # freezer (+180 d). Plus a linked bottle at noon and a combined pump+feed session.
         if offset >= 3 and day < today.date():
             supply = min(150, 40 + offset * 10) + random.randint(-8, 8)
             morning = d + timedelta(hours=6, minutes=random.randint(20, 50))
             morning_end = morning + timedelta(minutes=random.randint(15, 25))
-            expires = None
-            if offset == 4:
-                expires = (day + timedelta(days=120)).isoformat()  # freezer stash
+            tier, expires = "fridge", (day + timedelta(days=4)).isoformat()
             if day_count >= 7 and day == today.date() - timedelta(days=3):
-                expires = (today.date() + timedelta(days=9)).isoformat()  # fridge, expiring soon
-            if day_count >= 7 and day == today.date() - timedelta(days=6):
+                expires = (today.date() + timedelta(days=2)).isoformat()  # fridge, expiring soon
+            elif day_count >= 7 and day == today.date() - timedelta(days=6):
                 expires = (today.date() - timedelta(days=1)).isoformat()  # past its date
+            elif offset % 2 == 1:
+                tier, expires = "freezer", (day + timedelta(days=180)).isoformat()  # daily surplus ritual
             add(morning, "pump", U1, pump_side=random.choice(["left", "right"]), timer=1,
-                end_at=stamp(morning_end), pump_ml=supply, expires_on=expires)
+                end_at=stamp(morning_end), pump_ml=supply, expires_on=expires, pump_storage=tier)
             morning_idx = len(rows) - 1
             if offset >= 4 and random.random() < 0.65:
                 drink = min(supply, random.randint(30, 70))
@@ -103,7 +104,8 @@ def main() -> None:
                 drank = random.randint(40, 80)
                 add(evening, "pump", U1, pump_side="both", timer=1,
                     end_at=stamp(evening + timedelta(minutes=random.randint(20, 35))),
-                    pump_ml=drank + random.randint(0, 40), fed_ml=drank)
+                    pump_ml=drank + random.randint(0, 40), fed_ml=drank,
+                    expires_on=(day + timedelta(days=4)).isoformat(), pump_storage="fridge")
 
         clock = d + timedelta(hours=7, minutes=random.randint(0, 50))
         while clock.date() == day and clock < today - timedelta(minutes=25):

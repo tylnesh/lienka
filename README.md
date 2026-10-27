@@ -6,7 +6,7 @@ The client is a plain PWA (installable, offline shell) served by the same proces
 
 ## What you get
 
-- **Today** — running timers (feed per side/method, pumping, sleep, walk, bath, activity), one-tap diaper chips with undo, quick-log tiles, daily stats incl. today's expressed volume and the freezer bank, "last feed + time to next", notices card for threshold signals.
+- **Today** — running timers (feed per side/method, pumping, sleep, walk, bath, activity), one-tap diaper chips with undo, quick-log tiles, daily stats incl. today's expressed volume and the freezer bank, multi-tier milk pantry (fridge jug + freezer stash, one-tap "freeze the surplus", CDC dating), "last feed + time to next", notices card for threshold signals.
 - **Log** — day-grouped entries, user/kind filters, edit & delete, paging.
 - **Charts** — output, feeds, pumping (daily supply, 3-day trend, bank), sleep, weight (WHO weight-velocity bands), length (WHO length-for-age P3–P97 envelope), care time; 7/14/30 days.
 - **Insights** — deterministic checks computed from your records against registered references (WHO, NHS, ABM, Slovak MZ SR guidance for BFHI care); no AI, no network calls, every threshold shows its source or is marked `[unsourced]`. Not medical advice.
@@ -32,6 +32,10 @@ docker run -d --name lienka -p 8472:8472 -v $PWD/data:/data -e BIRTH_DATE=2026-0
 # or take a look first with a synthetic demo database (auto-resets on restart):
 docker build -t lienka . && docker run -d -p 8472:8472 -e DEMO=1 lienka
 ```
+
+### Upgrading to v1.24 (multi-tier milk storage)
+
+No action needed — existing bags default to the **fridge** tier. The bank now mirrors how milk is really stored: today's expressed milk sits in the fridge jug (CDC use-by ≤ 4 days, S48), and a one-tap **"Freeze the surplus"** on the Today card moves what's left into freshly dated freezer stock (~6 months, CDC). Bottles without an explicit bag link now draw from the fridge first and only then the freezer, oldest-first in both tiers; the pump dialog gained a Fridge/Freezer choice that pre-dates the use-by accordingly (`pump_storage` column, `/api/stash/freeze`).
 
 ### Upgrading to v1.23 (pumping & milk bank)
 
@@ -82,6 +86,7 @@ node tools/checklayout.mjs                                                      
 node tools/shot.mjs --scenario today --tag dev                                  # screenshots → ./screenshots
 python3 tools/tests/pump_api_test.py   http://localhost:8499                     # API suites (see headers for setup)
 python3 tools/tests/stash_api_test.py  http://localhost:8500                     # milk-bank math incl. FIFO/expiry
+python3 tools/tests/tier_api_test.py   http://localhost:8501                     # fridge/freezer tiers + freeze-surplus
 node tools/tests/pump_ui_smoke.mjs     http://127.0.0.1:8498                     # headless UI suite (playwright)
 ```
 

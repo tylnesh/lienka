@@ -30,10 +30,12 @@ jobs:
 
       - name: API suites on pristine instances
         run: |
-          mkdir -p /tmp/lienka-api /tmp/lienka-stash
+          mkdir -p /tmp/lienka-api /tmp/lienka-stash /tmp/lienka-tier
           DATA_DIR=/tmp/lienka-api   PORT=8499 HTTP_PORT=0 python3 server.py & p1=$!
           DATA_DIR=/tmp/lienka-stash PORT=8500 HTTP_PORT=0 python3 server.py & p2=$!
+          DATA_DIR=/tmp/lienka-tier  PORT=8501 HTTP_PORT=0 python3 server.py & p3=$!
           sleep 1.5
           python3 tools/tests/pump_api_test.py  http://localhost:8499
           python3 tools/tests/stash_api_test.py http://localhost:8500
-          kill $p1 $p2
+          python3 tools/tests/tier_api_test.py  http://localhost:8501
+          kill $p1 $p2 $p3

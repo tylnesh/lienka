@@ -31,7 +31,9 @@ API:
     PUT    /api/tasks/<id>         planned: partial update
     DELETE /api/tasks/<id>         planned: removes the task; existing "task" entries keep their title snapshot
     GET    /api/summary?days=7     per-day buckets + today + weights + heights + open logs + bank balance
-    GET    /api/stash              milk bank as bags (one pumping session = one bag), FIFO draw-down
+    GET    /api/stash              milk bank as bags (one pumping session = one bag) with fridge/freezer tiers,
+                                   linked + tier-aware FIFO draw-down, expiry buckets
+    POST   /api/stash/freeze       {ids?} — move remaining fridge milk to the freezer tier with fresh dating
     GET    /export.csv?from=&to=
     GET    /healthz
 """
@@ -60,7 +62,7 @@ CERT = os.environ.get("CERT", "")
 KEY = os.environ.get("KEY", "")
 CA_CERT = os.environ.get("CA_CERT", "")
 BIRTH_DATE = os.environ.get("BIRTH_DATE", "")
-VERSION = "1.23"
+VERSION = "1.24"
 
 LOCK = threading.Lock()
 USERS = [u.strip() for u in os.environ.get("USERS", "parent1,parent2,others").split(",") if u.strip()] or ["parent1", "parent2", "others"]
@@ -70,6 +72,10 @@ DIAPER_TYPES = ["wet", "dirty", "mixed"]
 DIAPER_COLOURS = ["mustard", "yellow", "green", "brown", "black", "red", "other"]
 FEED_METHODS = ["breast_left", "breast_right", "bottle_expressed", "bottle_formula"]
 PUMP_SIDES = ["left", "right", "both"]
+# Storage tiers (S48 CDC): "fridge" is today's jug, "freezer" the pooled once-a-day surplus.
+# Consumption without an explicit bag link drains fridge first, then freezer, oldest-first.
+PUMP_STORAGES = ["fridge", "freezer"]
+FREEZE_DEFAULT_DAYS = 180  # CDC: frozen milk "about 6 months is best" — use-by set by the freeze action
 MEASURE_KINDS = ["weight_g", "height_cm", "temp_c", "vitd_iu"]
 TASK_REPEATS = ["daily", "weekly", "monthly"]
 TASK_ICONS = ["bell", "pill", "calendar", "heart", "sun", "moon", "star", "walk", "bath", "bottle", "scale", "note", "clock", "home", "check"]
@@ -81,7 +87,7 @@ MAX_BODY_PHOTO = 4_000_000
 FIELDS = [
     "id", "user", "kind", "at", "created", "updated", "diaper_type", "diaper_colour",
     "feed_method", "feed_minutes", "feed_ml", "swallows", "end_at",
-    "pump_ml", "pump_side", "fed_ml", "source_pump_id", "expires_on",
+    "pump_ml", "pump_side", "fed_ml", "source_pump_id", "expires_on", "pump_storage",
     "measure_kind", "value", "note", "timer", "med_name", "dose", "activity", "task_id",
     "scale_before_g", "scale_after_g", "pausable", "paused_at", "pause_seconds",
 ]
@@ -212,7 +218,8 @@ def init_db() -> None:
         for name, sql in (("pausable", "INTEGER DEFAULT 0"), ("paused_at", "TEXT"), ("pause_seconds", "INTEGER DEFAULT 0")):
             if name not in cols:
                 conn.execute(f"ALTER TABLE entries ADD COLUMN {name} {sql}")
-        for name, sql in (("pump_ml", "INTEGER"), ("pump_side", "TEXT"), ("fed_ml", "INTEGER"), ("source_pump_id", "INTEGER"), ("expires_on", "TEXT")):
+        for name, sql in (("pump_ml", "INTEGER"), ("pump_side", "TEXT"), ("fed_ml", "INTEGER"), ("source_pump_id", "INTEGER"), ("expires_on", "TEXT"),
+                          ("pump_storage", "TEXT")):
             if name not in cols:
                 conn.execute(f"ALTER TABLE entries ADD COLUMN {name} {sql}")
         # reclassification (v1.23), automated on every startup: pumping is mother's supply, not
@@ -584,6 +591,13 @@ def validate(body: dict) -> tuple[dict | None, dict]:
             rec["pump_side"] = side
         else:
             errors["pump_side"] = "bad_value"
+        storage = body.get("pump_storage")
+        if storage is None or storage == "":
+            rec["pump_storage"] = "fridge"  # the everyday tier; freezer comes via explicit choice or the surplus action
+        elif storage in PUMP_STORAGES:
+            rec["pump_storage"] = storage
+        else:
+            errors["pump_storage"] = "bad_value"
         expires = body.get("expires_on")
         if expires is None or expires == "":
             rec["expires_on"] = None
@@ -812,6 +826,7 @@ def validate_update(body: dict, existing: sqlite3.Row) -> tuple[dict, dict]:
         int_update("pump_ml", 2000)
         int_update("fed_ml", 1000)
         enum_update("pump_side", PUMP_SIDES)
+        enum_update("pump_storage", PUMP_STORAGES)
         if "expires_on" in body:
             raw = body["expires_on"]
             if raw is None or raw == "":
@@ -997,7 +1012,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, {
                 "users": cfg["users"], "kinds": KINDS, "diaper_types": DIAPER_TYPES,
                 "diaper_colours": DIAPER_COLOURS, "feed_methods": FEED_METHODS,
-                "pump_sides": PUMP_SIDES, "measure_kinds": MEASURE_KINDS, "birth_date": cfg["birth_date"],
+                "pump_sides": PUMP_SIDES, "pump_storages": PUMP_STORAGES, "measure_kinds": MEASURE_KINDS, "birth_date": cfg["birth_date"],
                 "age_days": age, "server_time": now_local(), "version": VERSION,
                 "setup_needed": bool(not cfg["configured"] and not has_entries),
             })
@@ -1199,48 +1214,100 @@ class Handler(BaseHTTPRequestHandler):
         })
 
     def _stash(self) -> None:
-        """Freezer/fridge inventory: every pumping session is one bag of milk.
-        Bags are drawn down first by explicitly linked bottles (source_pump_id),
-        then unlinked bottle-expressed feeds consume the oldest bags FIFO."""
+        """Multi-tier milk bank. Every pumping session is one bag, stored either in the
+        fridge (today's jug) or the freezer (pooled surplus). Bags are drawn down first by
+        explicitly linked bottles (source_pump_id); unlinked bottle-expressed feeds then
+        consume the fridge tier oldest-first and only afterwards the freezer tier."""
+        self._json(HTTPStatus.OK, self._stash_data())
+
+    def _stash_data(self) -> dict:
+        """Deterministic, recomputed-from-scratch accounting with one hard rule: a bottle may
+        only draw from bags whose pumping happened at or before the bottle's time (milk cannot
+        come from the future — a bag logged after a bottle never feeds it, and backfilling an
+        older pump retroactively resolves past shortfalls). Explicit source_pump_id links win
+        first regardless; unlinked bottles drain the fridge tier oldest-first, then freezer."""
         with db() as conn:
             pumps = [dict(r) for r in conn.execute(
-                "SELECT id, at, pump_ml, fed_ml, expires_on FROM entries"
+                "SELECT id, at, pump_ml, fed_ml, expires_on, pump_storage FROM entries"
                 " WHERE kind='pump' AND COALESCE(pump_ml,0) > 0 ORDER BY at ASC").fetchall()]
             feeds = conn.execute(
-                "SELECT source_pump_id, feed_ml FROM entries"
-                " WHERE kind='feed' AND feed_method='bottle_expressed' AND (timer=0 OR end_at IS NOT NULL)").fetchall()
-        bags = {r["id"]: {"id": r["id"], "at": r["at"], "pumped": r["pump_ml"] or 0,
-                          "drank": r["fed_ml"] or 0, "taken": 0, "expires_on": r["expires_on"]} for r in pumps}
+                "SELECT source_pump_id, feed_ml, at FROM entries"
+                " WHERE kind='feed' AND feed_method='bottle_expressed' AND (timer=0 OR end_at IS NOT NULL)"
+                " ORDER BY at ASC, id ASC").fetchall()
+        bags = {r["id"]: {"id": r["id"], "at": r["at"], "pumped": r["pump_ml"] or 0, "drank": r["fed_ml"] or 0,
+                          "taken": 0, "expires_on": r["expires_on"], "storage": r["pump_storage"] or "fridge"}
+                for r in pumps}
         for bag in bags.values():
             bag["free"] = max(0, bag["pumped"] - bag["drank"])
-        unlinked = 0
-        overflow = 0
-        for f in feeds:
+        queue = sorted(bags.values(), key=lambda b: (0 if b["storage"] == "fridge" else 1, b["at"]))
+        unlinked_pool = 0
+        for f in feeds:  # chronological, so every bottle sees exactly the milk that existed then
             amount = f["feed_ml"] or 0
             bag = bags.get(f["source_pump_id"]) if f["source_pump_id"] else None
             if bag is not None:
                 take = min(amount, bag["free"])
                 bag["free"] -= take
                 bag["taken"] += take
-                unlinked += amount - take  # linked bag ran dry: the rest consumed something else
+                unlinked_pool += amount - take  # linked bag ran dry: the rest came from somewhere else
             else:
-                unlinked += amount
-        for bag in bags.values():  # FIFO across whole days (same at ⇒ insertion order)
-            if unlinked <= 0:
-                break
-            take = min(unlinked, bag["free"])
-            bag["free"] -= take
-            bag["taken"] += take
-            unlinked -= take
-        short = max(0, unlinked)  # bottles exceeded every recorded drop of milk
+                unlinked_pool += amount
+            for b in queue:  # fridge-first, oldest-first, only milk available at this bottle's time
+                if unlinked_pool <= 0:
+                    break
+                if b["at"] > f["at"]:
+                    continue
+                take = min(unlinked_pool, b["free"])
+                b["free"] -= take
+                b["taken"] += take
+                unlinked_pool -= take
+        short = max(0, unlinked_pool)  # bottles outran every drop recorded by their time
         today = date.today().isoformat()
         soon = (date.today() + timedelta(days=14)).isoformat()
+        live = [b for b in bags.values() if b["free"] > 0 or b["taken"]]
         expired_ml = sum(b["free"] for b in bags.values() if b["free"] and b["expires_on"] and b["expires_on"] < today)
         soon_ml = sum(b["free"] for b in bags.values() if b["free"] and b["expires_on"] and today <= b["expires_on"] <= soon)
         balance = sum(b["free"] for b in bags.values())
-        bags_list = sorted(bags.values(), key=lambda b: ((b["expires_on"] or "9999-12-31"), b["at"]))
-        self._json(HTTPStatus.OK, {"balance": balance, "short": short, "expired_ml": expired_ml,
-                                   "soon_ml": soon_ml, "bags": [b for b in bags_list if b["free"] > 0 or b["taken"]]})
+        tier = lambda name: sum(b["free"] for b in bags.values() if b["storage"] == name)
+        bags_list = sorted(live, key=lambda b: (0 if b["storage"] == "fridge" else 1, (b["expires_on"] or "9999-12-31"), b["at"]))
+        return {"balance": balance, "short": short, "expired_ml": expired_ml, "soon_ml": soon_ml,
+                "fridge_ml": tier("fridge"), "freezer_ml": tier("freezer"),
+                "bags": [dict(b) for b in bags_list]}
+
+    def _freeze_surplus(self) -> None:
+        """The once-a-day ritual: whatever is left in fridge bags moves to the freezer tier
+        with fresh freezer dating (S48 CDC: about 6 months). No new pumping rows — milk and
+        bank balance are untouched, only their storage changes."""
+        body, err = self._read_json()
+        if err:
+            self._json(HTTPStatus.BAD_REQUEST, {"errors": {"body": err}})
+            return
+        ids = body.get("ids")
+        want = None
+        if isinstance(ids, list) and ids:
+            try:
+                want = {int(i) for i in ids}
+            except (TypeError, ValueError):
+                self._json(HTTPStatus.BAD_REQUEST, {"errors": {"ids": "bad_value"}})
+                return
+        expires = (date.today() + timedelta(days=FREEZE_DEFAULT_DAYS)).isoformat()
+        with LOCK, db() as conn:
+            rows = conn.execute(
+                "SELECT id, pump_storage FROM entries WHERE kind='pump' AND COALESCE(pump_ml,0) > 0").fetchall()
+            snapshot = self._stash_data()  # dynamic "free" per bag, linked+FIFO accounting applied
+            free = {b["id"]: b["free"] for b in snapshot["bags"]}
+            froze = 0
+            for r in rows:
+                tier_now = r["pump_storage"] or "fridge"
+                if want is not None and r["id"] not in want:
+                    continue
+                if tier_now == "freezer" or free.get(r["id"], 0) <= 0:
+                    continue  # already frozen, or fully consumed — nothing to move
+                conn.execute("UPDATE entries SET pump_storage='freezer', expires_on=?, updated=? WHERE id=?",
+                             (expires, now_local(), r["id"]))
+                froze += 1
+        data = self._stash_data()
+        data["froze"] = froze
+        self._json(HTTPStatus.OK, data)
 
     def _tasks(self) -> None:
         with db() as conn:
@@ -1306,6 +1373,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        if path == "/api/stash/freeze":
+            self._freeze_surplus()
+            return
         if path == "/api/llm":
             body, err = self._read_json()
             if err:

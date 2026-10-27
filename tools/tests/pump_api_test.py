@@ -44,6 +44,7 @@ today = time.strftime("%Y-%m-%d")
 s, r = call("POST", "/api/entries", {"user": "parent1", "kind": "pump", "at": today + "T08:00",
                                      "end_at": today + "T08:25", "pump_ml": 120, "pump_side": "both"})
 check("POST pump closed session", s == 201 and r["entry"]["pump_ml"] == 120)
+check("new pump defaults to fridge tier", r["entry"]["pump_storage"] == "fridge")
 pump_id = r["entry"]["id"]
 s, r = call("POST", "/api/entries", {"user": "parent1", "kind": "feed", "at": today + "T10:00",
                                      "feed_method": "bottle_expressed", "feed_ml": 90,
@@ -91,7 +92,7 @@ check("link to non-pump rejected", s == 400)
 # CSV carries the new columns
 csv = urllib.request.urlopen(BASE + "/export.csv").read().decode()
 head = csv.splitlines()[0]
-check("csv has pump columns", all(c in head for c in ("pump_ml", "pump_side", "fed_ml", "source_pump_id")))
+check("csv has pump columns", all(c in head for c in ("pump_ml", "pump_side", "fed_ml", "source_pump_id", "pump_storage")))
 
 print("RESULT:", "ALL OK" if ok else "FAILURES")
 sys.exit(0 if ok else 1)

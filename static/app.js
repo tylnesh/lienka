@@ -3,7 +3,7 @@
 
 /* baby-log PWA — views: today / log / stats / insights, entry editing in a modal sheet. */
 
-const API = { meta: "/api/meta", settings: "/api/settings", entries: "/api/entries", summary: "/api/summary", stash: "/api/stash", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
+const API = { meta: "/api/meta", settings: "/api/settings", entries: "/api/entries", summary: "/api/summary", stash: "/api/stash", stashFreeze: "/api/stash/freeze", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
 
 const I18N = {
   sk: {
@@ -21,11 +21,12 @@ const I18N = {
     feed_methods: { breast_left: "Ľavý prs", breast_right: "Pravý prs", bottle_expressed: "Fľaša – odstriekané", bottle_formula: "Fľaša – umelé" },
     quick_feed_methods: { breast_left: "Ľavý prs", breast_right: "Pravý prs", bottle_expressed: "fľaša", bottle_formula: "umelé" },
     pump_sides: { left: "Ľavý", right: "Pravý", both: "Oboje" },
+    pump_storages: { fridge: "Chladnička", freezer: "Mraznička" },
     measure_kinds: { weight_g: "Hmotnosť (g)", height_cm: "Výška (cm)", temp_c: "Teplota (°C)", vitd_iu: "Vitamín D (IU)" },
     fields: {
       user: "Kto zaznamenal", at: "Čas", diaper_type: "Typ", diaper_colour: "Farba stolice", feed_method: "Spôsob",
       feed_minutes: "Minúty", feed_ml: "ml", swallows: "Počuté prehlt-y", end_at: "Koniec",
-      pump_ml: "Odstriekané (ml)", fed_ml: "Dieťa vypilo (ml)", pump_side: "Prs", expires_on: "K spotrebe",
+      pump_ml: "Odstriekané (ml)", fed_ml: "Dieťa vypilo (ml)", pump_side: "Prs", pump_storage: "Uchovanie", expires_on: "K spotrebe",
       source_pump_id: "Z ktorej zásoby",
       date: "Dátum", time: "Čas",
       measure_kind: "Čo meriame", value: "Hodnota", med_name: "Liek", dose: "Dávka", activity: "Aktivita", note: "Poznámka",
@@ -59,7 +60,8 @@ const I18N = {
     startPump: "Spustiť odsávanie", stopPump: "Ukončiť odsávanie", pumpRunning: "Odsávanie beží", pumpDrank: "vypila {n} ml",
     stashTitle: "Zásobník mlieka", stashEmpty: "V zásobe zatiaľ nič.", stashExpired: "po lehote", stashUseBy: "k spotrebe {d}",
     stashShort: "Fľaše odstriekaného mlieka presahujú záznamy o odsávaní o {n} ml.",
-    pickAuto: "— najstaršia zásoba (FIFO)", pickLeft: "zostáva {n} ml", pickNone: "(v zásobe nič)",
+    pickAuto: "— najprv chladnička, potom mraznička (od najstaršej)", pickLeft: "zostáva {n} ml", pickNone: "(v zásobe nič)",
+    stashFreeze: "Zamroziť prebytok", stashFreezing: "Zamrazujem…", bankHint: "Chladnička do 4 dní, mraznička asi 6 mesiacov (CDC S48).", frozeDone: "{n} zásob zamrazených",
     sleepRunning: "Spánok beží", feedRunning: "Kojenie beží", since: "od",
     startWalk: "Spustiť prechádzku", stopWalk: "Ukončiť prechádzku", walkRunning: "Prechádzka beží",
     startBath: "Spustiť kúpeľ", stopBath: "Ukončiť kúpeľ", bathRunning: "Kúpeľ beží",
@@ -241,7 +243,7 @@ const I18N = {
       moreSignals: "+{n} ďalších", fewerSignals: "Menej", noSignals: "Žiadne neignorované signály.",
       srcIntro: "Zdroje – otvoria sa v novej karte:",
       tagMeasured: "vypočítané z vašich záznamov",
-      srcWho: "WHO GVS (rýchlosť rastu)", srcNhs: "NHS", srcNhs23: "NHS (váha)", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR (BFHI)", srcUnsourced: "[unsourced]", srcOff: "zdroje vypnuté",
+      srcWho: "WHO GVS (rýchlosť rastu)", srcNhs: "NHS", srcNhs23: "NHS (váha)", srcCdc: "CDC", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR (BFHI)", srcUnsourced: "[unsourced]", srcOff: "zdroje vypnuté",
       disclaimer: "Referenčné hodnoty vychádzajú z registrovaných zdrojov (MZ SR, WHO, NHS, AAP, ABM, AWMF, PTGHiŻDz) – podrobnosti a zapínanie v Nastaveniach → Zdroje. Tipy počítame deterministicky z vašich záznamov, bez AI. Nie je to lekárske odporúčanie – pri odchýlkach kontaktujte pediatra.",
     },
     errors: {
@@ -266,11 +268,12 @@ const I18N = {
     feed_methods: { breast_left: "Left breast", breast_right: "Right breast", bottle_expressed: "Bottle – expressed", bottle_formula: "Bottle – formula" },
     quick_feed_methods: { breast_left: "Left breast", breast_right: "Right breast", bottle_expressed: "bottle", bottle_formula: "formula" },
     pump_sides: { left: "Left", right: "Right", both: "Both" },
+    pump_storages: { fridge: "Fridge", freezer: "Freezer" },
     measure_kinds: { weight_g: "Weight (g)", height_cm: "Height (cm)", temp_c: "Temperature (°C)", vitd_iu: "Vitamin D (IU)" },
     fields: {
       user: "Logged by", at: "Time", diaper_type: "Type", diaper_colour: "Stool colour", feed_method: "Method",
       feed_minutes: "Minutes", feed_ml: "ml", swallows: "Swallows heard", end_at: "End",
-      pump_ml: "Expressed (ml)", fed_ml: "Baby drank (ml)", pump_side: "Breast", expires_on: "Use by",
+      pump_ml: "Expressed (ml)", fed_ml: "Baby drank (ml)", pump_side: "Breast", pump_storage: "Storage", expires_on: "Use by",
       source_pump_id: "From which bag",
       date: "Date", time: "Time",
       measure_kind: "What", value: "Value", med_name: "Medication", dose: "Dose", activity: "Activity", note: "Note",
@@ -304,7 +307,8 @@ const I18N = {
     startPump: "Start pumping", stopPump: "Stop pumping", pumpRunning: "Pumping running", pumpDrank: "drank {n} ml",
     stashTitle: "Milk bank", stashEmpty: "No stored milk yet.", stashExpired: "expired", stashUseBy: "use by {d}",
     stashShort: "Bottles of expressed milk exceed the pumping records by {n} ml.",
-    pickAuto: "— oldest bag first (FIFO)", pickLeft: "{n} ml left", pickNone: "(no milk in stock)",
+    pickAuto: "— fridge first, then freezer (oldest first)", pickLeft: "{n} ml left", pickNone: "(no milk in stock)",
+    stashFreeze: "Freeze the surplus", stashFreezing: "Freezing…", bankHint: "Fridge up to 4 days, freezer about 6 months (CDC S48).", frozeDone: "{n} bags frozen",
     sleepRunning: "Sleep running", feedRunning: "Feed running", since: "since",
     startWalk: "Start walk", stopWalk: "Stop walk", walkRunning: "Walk running",
     startBath: "Start bath", stopBath: "Stop bath", bathRunning: "Bath running",
@@ -485,7 +489,7 @@ const I18N = {
       moreSignals: "+{n} more", fewerSignals: "Fewer", noSignals: "No un-ignored signals.",
       srcIntro: "Sources – open in a new tab:",
       tagMeasured: "computed from your records",
-      srcWho: "WHO GVS (velocity)", srcNhs: "NHS", srcNhs23: "NHS (weight)", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR BFHI (SK)", srcUnsourced: "[unsourced]", srcOff: "sources off",
+      srcWho: "WHO GVS (velocity)", srcNhs: "NHS", srcNhs23: "NHS (weight)", srcCdc: "CDC", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR BFHI (SK)", srcUnsourced: "[unsourced]", srcOff: "sources off",
       disclaimer: "Reference values come from registered sources (MZ SR, WHO, NHS, AAP, ABM, AWMF, PTGHiŻDz) – details and toggling in Settings → Sources. Tips are computed deterministically from your records, no AI. Not medical advice – contact your pediatrician about outliers.",
     },
     errors: {
@@ -544,7 +548,7 @@ const PATHS = {
 const KIND_ICONS = { diaper: "diaper", feed: "bottle", sleep: "moon", pump: "pump", walk: "walk", bath: "bath", medication: "pill", activity: "star", task: "bell", measure: "scale", note: "note" };
 const KIND_ORDER = ["diaper", "feed", "sleep", "pump", "walk", "bath", "medication", "activity", "measure", "note"];
 const TIMER_KINDS = ["feed", "sleep", "pump", "walk", "bath", "activity"];
-const SELECT_DICT = { diaper_type: "diaper_types", diaper_colour: "diaper_colours", feed_method: "feed_methods", pump_side: "pump_sides", measure_kind: "measure_kinds" };
+const SELECT_DICT = { diaper_type: "diaper_types", diaper_colour: "diaper_colours", feed_method: "feed_methods", pump_side: "pump_sides", pump_storage: "pump_storages", measure_kind: "measure_kinds" };
 const VIEWS = ["today", "log", "stats", "kontrola", "insights", "doctor"];
 const VIEW_ICONS = { today: "home", log: "list", stats: "chart", kontrola: "bell", insights: "bulb", doctor: "heart" };
 const CHART_TABS = ["output", "feeds", "pumps", "sleep", "weight", "length", "care"];
@@ -1567,29 +1571,57 @@ function statsCard(today) {
 }
 
 function stashCard() {
-  const card = h("section", { class: "card" }, h("div", { class: "cardhead" }, h("h2", {}, t("stashTitle"))));
-  api(API.stash).then((st) => {
+  const card = h("section", { class: "card" });
+  const head = h("div", { class: "cardhead" }, h("h2", {}, t("stashTitle")));
+  const bodyBox = h("div", {});
+  card.append(head, bodyBox);
+
+  const bagRow = (b, todayIso, soonIso) => {
+    let tag = null;
+    if (b.expires_on) {
+      const cls = b.expires_on < todayIso ? "tag bad" : b.expires_on <= soonIso ? "tag warn" : "tag";
+      tag = h("span", { class: cls }, b.expires_on < todayIso ? t("stashExpired") : t("stashUseBy", { d: b.expires_on.slice(5) }));
+    }
+    return h("div", { class: "stashrow" },
+      h("span", {}, fmtAt(b.at)),
+      tag,
+      h("span", { class: "spacer" }),
+      h("b", {}, `${fmtNum(b.free)} ml`),
+      h("span", { class: "muted", style: "margin-left:8px" }, `${fmtNum(b.pumped)} ml`));
+  };
+
+  const render = (st) => {
+    head.querySelectorAll("button").forEach((b) => b.remove());
+    bodyBox.innerHTML = "";
     const todayIso = isoDay(new Date());
     const soonIso = isoDay(new Date(Date.now() + 14 * 864e5));
-    const rows = (st.bags || []).map((b) => {
-      let tag = null;
-      if (b.expires_on) {
-        const cls = b.expires_on < todayIso ? "tag bad" : b.expires_on <= soonIso ? "tag warn" : "tag";
-        tag = h("span", { class: cls }, b.expires_on < todayIso ? t("stashExpired") : t("stashUseBy", { d: b.expires_on.slice(5) }));
-      }
-      return h("div", { class: "stashrow" },
-        h("span", {}, fmtAt(b.at)),
-        tag,
-        h("span", { class: "spacer" }),
-        h("b", {}, `${fmtNum(b.free)} ml`),
-        h("span", { class: "muted", style: "margin-left:8px" }, `${fmtNum(b.pumped)} ml`));
-    });
-    card.append(h("div", { class: "stash" },
+    const bags = (st.bags || []).filter((b) => b.free > 0);  // drained history belongs to the log, not the pantry
+    const group = (name) => {
+      const inTier = bags.filter((b) => (b.storage || "fridge") === name);
+      if (!inTier.length) return null;
+      return [h("div", { class: "stashgroup" }, t(`pump_storages.${name}`), h("span", { class: "spacer" }),
+                 h("span", {}, `${fmtNum(name === "fridge" ? st.fridge_ml : st.freezer_ml)} ml`)),
+              ...inTier.map((b) => bagRow(b, todayIso, soonIso))];
+    };
+    bodyBox.append(h("div", { class: "stash" },
       h("div", { class: "stashrow total" }, h("span", {}, t("stat.bank")), h("span", { class: "spacer" }), h("b", {}, `${fmtNum(st.balance)} ml`)),
-      ...rows,
-      !rows.length ? h("p", { class: "muted" }, t("stashEmpty")) : null,
-      st.short ? h("p", { class: "shortwarn" }, t("stashShort", { n: fmtNum(st.short) })) : null));
-  }).catch(() => card.append(h("p", { class: "muted" }, t("errors.network"))));
+      ...(group("fridge") || []), ...(group("freezer") || []),
+      !bags.length ? h("p", { class: "muted" }, t("stashEmpty")) : null,
+      st.short ? h("p", { class: "shortwarn" }, t("stashShort", { n: fmtNum(st.short) })) : null,
+      h("p", { class: "muted bankhint" }, t("bankHint"), srcTag(pickSrc(SRC_FOR.bank))),
+      st.froze ? h("p", { class: "muted" }, t("frozeDone", { n: st.froze })) : null));
+    // the once-a-day ritual: fridge leftovers become freshly dated freezer stock
+    if ((st.fridge_ml || 0) > 0) {
+      const btn = h("button", { class: "btn small" }, t("stashFreeze"));
+      btn.addEventListener("click", () => {
+        btn.disabled = true; btn.textContent = t("stashFreezing");
+        api(API.stashFreeze, { method: "POST", body: "{}" }).then((st) => render(st), () => { btn.disabled = false; btn.textContent = t("stashFreeze"); });
+      });
+      head.append(btn);
+    }
+  };
+
+  api(API.stash).then((st) => render(st), () => bodyBox.append(h("p", { class: "muted" }, t("errors.network"))));
   return card;
 }
 
@@ -2544,6 +2576,8 @@ const SOURCES = {
     url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/length-height-for-age/lfa-girls-0-2-percentiles.pdf?sfvrsn=d5f0d7c1_5" },
   S47: { label: "insights.srcWho", region: "WHO", title: "WHO Child Growth Standards — length-for-age percentiles, boys birth to 2 years",
     url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/length-height-for-age/lfa-boys-0-2-percentiles.pdf?sfvrsn=6fef3f25_7" },
+  S48: { label: "insights.srcCdc", region: "US", title: "CDC breast milk storage — room up to 4 h, fridge up to 4 days, freezer about 6 months (best quality)",
+    url: "https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" },
   S31: { label: "insights.srcNhs", region: "UK", title: "NHS — is my baby getting enough milk?",
     url: "https://www.nhs.uk/baby/breastfeeding-and-bottle-feeding/breastfeeding-problems/enough-milk/" },
   S43: { label: "insights.srcNhs", region: "UK", title: "NHS — breastfeeding: the first few days",
@@ -2567,6 +2601,7 @@ const SOURCES = {
 const SRC_FOR = {
   weightVel: ["S44"],
   len: ["S46", "S47"],
+  bank: ["S48"],
   regain: ["S45"],
   feeds: ["S122", "S124", "S125", "S43"],
   feedGap: ["S43", "S124"],
@@ -3694,6 +3729,7 @@ function fieldSpec(kind, entry = null) {
     specs.push(
       { name: "at", type: "datetime" },
       { name: "pump_side", type: "seg", options: meta.pump_sides, optional: true, full: true },
+      { name: "pump_storage", type: "seg", options: meta.pump_storages || ["fridge", "freezer"], full: true },
       { name: "pump_ml", type: "stepper", step: 10 },
       { name: "fed_ml", type: "stepper", step: 5 },
       { name: "expires_on", type: "date", optional: true },
@@ -3840,7 +3876,7 @@ function openEntryDialog(kind, entry = null, atPreset = null) {
         for (const b of bags) {
           const opt = document.createElement("option");
           opt.value = String(b.id);
-          opt.textContent = `${fmtAt(b.at)} · ${t("pickLeft", { n: fmtNum(b.free) })}`;
+          opt.textContent = `${t(`pump_storages.${b.storage || "fridge"}`)} · ${fmtAt(b.at)} · ${t("pickLeft", { n: fmtNum(b.free) })}`;
           input.append(opt);
         }
         if (wantId && input.querySelector(`option[value="${wantId}"]`)) input.value = wantId;
@@ -3923,6 +3959,12 @@ function openEntryDialog(kind, entry = null, atPreset = null) {
           values[spec.name].input.dataset.value = val;
         }
       }
+      if (spec.type === "seg" && spec.name === "pump_storage") {
+        // everyday reality: fresh milk goes to the fridge jug unless bumped to freezer or frozen later
+        const btn = values[spec.name].input.querySelector('[data-seg-value="fridge"]');
+        btn.classList.add("on");
+        values[spec.name].input.dataset.value = "fridge";
+      }
     }
   }
 
@@ -3971,6 +4013,25 @@ function openEntryDialog(kind, entry = null, atPreset = null) {
     const syncSrcVis = () => { if (srcRow) srcRow.classList.toggle("hidden", methodSeg.dataset.value !== "bottle_expressed"); };
     methodSeg.addEventListener("click", () => setTimeout(syncSrcVis, 0));
     syncSrcVis();
+  }
+
+  // storage tier ↔ CDC use-by prefill (fridge 4 d / freezer ~6 mo, S48): only ever replaces
+  // an empty date or one this helper wrote — a manually picked date is never clobbered
+  if (kind === "pump") {
+    const tierSeg = values.pump_storage && values.pump_storage.input;
+    const expiresIn = values.expires_on && values.expires_on.input;
+    if (tierSeg && expiresIn) {
+      const syncExpiry = () => {
+        const days = tierSeg.dataset.value === "freezer" ? 180 : 4;
+        if (!expiresIn.value || expiresIn.value === expiresIn.dataset.auto) {
+          expiresIn.value = isoDay(new Date(Date.now() + days * 864e5));
+          expiresIn.dataset.auto = expiresIn.value;
+        }
+      };
+      tierSeg.addEventListener("click", () => setTimeout(syncExpiry, 0));
+      if (!entry) syncExpiry();
+      body.append(h("p", { class: "muted bankhint" }, t("bankHint"), srcTag(pickSrc(SRC_FOR.bank))));
+    }
   }
 
   const del = $("sheetDelete");
