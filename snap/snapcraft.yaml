@@ -3,15 +3,16 @@ title: Lienka — baby log
 version: "1.24"
 summary: Self-hosted baby tracker — one SQLite file, a PWA for the whole family
 description: |
-  Lienka is a self-hosted baby tracker (nappies, feeds, pumping & milk bank, sleep, walks, baths,
-  medications, measurements, notes) shared live between the caregivers' phones.
+  Lienka is a self-hosted baby tracker (nappies, feeds, pumping with a fridge/freezer
+  milk bank, sleep, walks, baths, medications, growth charts against WHO reference
+  bands, notes) shared live between the caregivers' phones.
   The whole state is one SQLite file on your own machine — no cloud, no accounts,
   no telemetry. The server hosts an installable PWA: open http://this-machine:8472/
   on each device and pick "Add to Home Screen". Works on iOS, Android and desktop.
 
   After installing, configure it for your family and restart:
 
-    sudo snap set lienka users="mama,papa" birth-date=2026-09-17 tz=Europe/Bratislava
+    sudo snap set lienka users="mama,papa" birth-date=YYYY-MM-DD tz=Europe/Bratislava
     sudo snap restart lienka
 
   Data lives in /var/snap/lienka/common/data and survives `snap refresh`. A plain

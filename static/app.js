@@ -10,7 +10,7 @@ const I18N = {
     title: "Denník miminka",
     users: { others: "Ostatní" },
     setup: { title: "Nastavte Lienku", sub: "Kto sa o bábätko stará a kedy sa narodilo? Dá sa to kedykoľvek upraviť v Nastaveniach.", users: "Ošetrovatelia", addName: "Meno (napr. Mamička)", add: "Pridať človeka", remove: "Odstrániť", birth: "Dátum narodenia", birthSub: "Zostáva na vašom serveri — vek a rastové grafy sa sprístupnia po nastavení.", save: "Uložiť nastavenie", saved: "Nastavenie uložené", needUser: "Zadajte aspoň jedno meno.", badRejected: "Server odmietol hodnoty", failed: "Nepodarilo sa uložiť — ste online?", renameNote: "Premenovanie prepíše aj staršie záznamy.", removedNote: "Po odstránení zostanú staré záznamy s pôvodným menom.", },
-    kinds: { diaper: "Plenka", feed: "Kojenie", sleep: "Spánok", pump: "Odsávanie", walk: "Prechádzka", bath: "Kúpeľ", medication: "Lieky", activity: "Aktivita", task: "Úloha", measure: "Meranie", note: "Poznámka" },
+    kinds: { diaper: "Plenka", feed: "Krmenie", sleep: "Spánok", pump: "Odsávanie", walk: "Prechádzka", bath: "Kúpeľ", medication: "Lieky", activity: "Aktivita", task: "Úloha", measure: "Meranie", note: "Poznámka" },
     kind_sub: {
       diaper: "mokrá · stolica", feed: "časovač · ml", sleep: "spí / vstal", pump: "zásoba mlieka",
       walk: "čas vonku",
@@ -49,7 +49,7 @@ const I18N = {
       take: "Odfotiť", upload: "Nahrať",
       kg: "kg", auto: "prečítané z displeja", manual: "neprečítané – zadajte hodnotu ručne",
       aiWait: "AI číta fotku…", autoAi: "prečítané z fotky (AI)",
-      fromStash: "predtým nameraná hodnota", badKg: "Zadaj platnú hmotnosť – kg (6,24) alebo gramy (6240)",
+      fromStash: "predtým nameraná hodnota", valuePh: "6,24 / 6240", badKg: "Zadaj platnú hmotnosť – kg (6,24) alebo gramy (6240)",
       delta: "Vypila: +{g} g (~{ml} ml)", bad: "Rozdiel {g} g nedáva zmysel – skontrolujte hodnoty.",
       offer: "Chcete doplniť fotky z váh?", offerBtn: "Doplniť váhy",
       photosFail: "Záznam uložený, fotky sa nepodarilo nahrať.",
@@ -62,7 +62,7 @@ const I18N = {
     stashShort: "Fľaše odstriekaného mlieka presahujú záznamy o odsávaní o {n} ml.",
     pickAuto: "— najprv chladnička, potom mraznička (od najstaršej)", pickLeft: "zostáva {n} ml", pickNone: "(v zásobe nič)",
     stashFreeze: "Zamroziť prebytok", stashFreezing: "Zamrazujem…", bankHint: "Chladnička do 4 dní, mraznička asi 6 mesiacov (CDC S48).", frozeDone: "{n} zásob zamrazených",
-    sleepRunning: "Spánok beží", feedRunning: "Kojenie beží", since: "od",
+    sleepRunning: "Spánok beží", feedRunning: "Krmenie beží", since: "od",
     startWalk: "Spustiť prechádzku", stopWalk: "Ukončiť prechádzku", walkRunning: "Prechádzka beží",
     startBath: "Spustiť kúpeľ", stopBath: "Ukončiť kúpeľ", bathRunning: "Kúpeľ beží",
     startActivity: "Spustiť aktivitu", stopActivity: "Ukončiť aktivitu", activityRunning: "Aktivita beží",
@@ -243,7 +243,7 @@ const I18N = {
       moreSignals: "+{n} ďalších", fewerSignals: "Menej", noSignals: "Žiadne neignorované signály.",
       srcIntro: "Zdroje – otvoria sa v novej karte:",
       tagMeasured: "vypočítané z vašich záznamov",
-      srcWho: "WHO GVS (rýchlosť rastu)", srcNhs: "NHS", srcNhs23: "NHS (váha)", srcCdc: "CDC", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR (BFHI)", srcUnsourced: "[unsourced]", srcOff: "zdroje vypnuté",
+      srcWho: "WHO GVS (rýchlosť rastu)", srcWhoLfa: "WHO LFA (dĺžka/výška)", srcNhs: "NHS", srcNhs23: "NHS (váha)", srcCdc: "CDC", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR (BFHI)", srcUnsourced: "[unsourced]", srcOff: "zdroje vypnuté",
       disclaimer: "Referenčné hodnoty vychádzajú z registrovaných zdrojov (MZ SR, WHO, NHS, AAP, ABM, AWMF, PTGHiŻDz) – podrobnosti a zapínanie v Nastaveniach → Zdroje. Tipy počítame deterministicky z vašich záznamov, bez AI. Nie je to lekárske odporúčanie – pri odchýlkach kontaktujte pediatra.",
     },
     errors: {
@@ -296,7 +296,7 @@ const I18N = {
       take: "Take photo", upload: "Upload",
       kg: "kg", auto: "read from display", manual: "couldn't read – enter value manually",
       aiWait: "AI is reading the photo…", autoAi: "read from photo (AI)",
-      fromStash: "previously measured value", badKg: "Enter a valid weight – kg (6.24) or grams (6240)",
+      fromStash: "previously measured value", valuePh: "6.24 / 6240", badKg: "Enter a valid weight – kg (6.24) or grams (6240)",
       delta: "Drank: +{g} g (~{ml} ml)", bad: "Difference {g} g makes no sense – check the values.",
       offer: "Add scale photos?", offerBtn: "Add scale",
       photosFail: "Entry saved, photos could not be uploaded.",
@@ -489,7 +489,7 @@ const I18N = {
       moreSignals: "+{n} more", fewerSignals: "Fewer", noSignals: "No un-ignored signals.",
       srcIntro: "Sources – open in a new tab:",
       tagMeasured: "computed from your records",
-      srcWho: "WHO GVS (velocity)", srcNhs: "NHS", srcNhs23: "NHS (weight)", srcCdc: "CDC", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR BFHI (SK)", srcUnsourced: "[unsourced]", srcOff: "sources off",
+      srcWho: "WHO GVS (velocity)", srcWhoLfa: "WHO LFA (length/height)", srcNhs: "NHS", srcNhs23: "NHS (weight)", srcCdc: "CDC", srcAbm: "ABM #3", srcAwmf: "AWMF S3", srcAepap: "AEPap", srcAap: "AAP", srcPtgh: "PTGHiŻDz", srcMzsrf: "MZ SR BFHI (SK)", srcUnsourced: "[unsourced]", srcOff: "sources off",
       disclaimer: "Reference values come from registered sources (MZ SR, WHO, NHS, AAP, ABM, AWMF, PTGHiŻDz) – details and toggling in Settings → Sources. Tips are computed deterministically from your records, no AI. Not medical advice – contact your pediatrician about outliers.",
     },
     errors: {
@@ -1908,10 +1908,15 @@ function barPos(index, count) {
 
 function gridLines(max) {
   let out = "";
-  for (let i = 1; i <= 4; i++) {
-    const y = CBASE - (CPLOT * i) / 4;
+  if (!(max > 0)) return out;
+  // nice round tick values instead of raw max/4 fractions (was showing "3.8" on count charts)
+  const raw = max / 4;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = Math.max(1, [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw) || 10 * pow);
+  for (let v = step; v <= max + 1e-9; v += step) {
+    const y = CBASE - (CPLOT * v) / max;
     out += `<line class="grid" x1="${CM}" y1="${y.toFixed(1)}" x2="${CW - CM}" y2="${y.toFixed(1)}"/>`;
-    out += `<text x="${CM}" y="${(y - 4).toFixed(1)}">${fmtNum((max * i) / 4)}</text>`;
+    out += `<text x="${CM}" y="${(y - 4).toFixed(1)}">${fmtNum(Math.round(v * 10) / 10)}</text>`;
   }
   return out;
 }
@@ -2572,9 +2577,9 @@ const SOURCES = {
     url: "https://www.health.gov.sk/Zdroje?/Sources/dokumenty/SDTP/standardy/Baby-friendly_Hospital_Initiative_Interdisciplinarna_oblast/Predchadzajuce_verzie/0031_Starostlivost_o_matku_a_novorodenca_podla_zasad_iniciativy_BFHI_-_podpora_vztahovej_vazby_a_laktaci.pdf" },
   S44: { label: "insights.srcWho", region: "WHO", title: "WHO Child Growth Standards — weight increments, girls 0–60 d",
     url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/weight-velocity/weight_inc_birth_to_60_days_girls.pdf" },
-  S46: { label: "insights.srcWho", region: "WHO", title: "WHO Child Growth Standards — length-for-age percentiles, girls birth to 2 years",
+  S46: { label: "insights.srcWhoLfa", region: "WHO", title: "WHO Child Growth Standards — length-for-age percentiles, girls birth to 2 years",
     url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/length-height-for-age/lfa-girls-0-2-percentiles.pdf?sfvrsn=d5f0d7c1_5" },
-  S47: { label: "insights.srcWho", region: "WHO", title: "WHO Child Growth Standards — length-for-age percentiles, boys birth to 2 years",
+  S47: { label: "insights.srcWhoLfa", region: "WHO", title: "WHO Child Growth Standards — length-for-age percentiles, boys birth to 2 years",
     url: "https://cdn.who.int/media/docs/default-source/child-growth/child-growth-standards/indicators/length-height-for-age/lfa-boys-0-2-percentiles.pdf?sfvrsn=6fef3f25_7" },
   S48: { label: "insights.srcCdc", region: "US", title: "CDC breast milk storage — room up to 4 h, fridge up to 4 days, freezer about 6 months (best quality)",
     url: "https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" },
@@ -2786,8 +2791,8 @@ function fillMilkHint(row, entry, atPreset) {
     gNote.textContent = t("hints.doneSw", { ml: est, n, mls: fmtNum(mls) });
   };
   row.append(h("span", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px" },
-    h("button", { type: "button", class: "mini ghost", title: t("hints.guessTimeTitle"), onclick: guessFromMinutes }, t("hints.guessTime")),
-    h("button", { type: "button", class: "mini ghost", title: t("hints.guessSwTitle"), onclick: guessFromSwallows }, t("hints.guessSw")),
+    h("button", { type: "button", class: "mini ghost wide", style: "white-space:nowrap", title: t("hints.guessTimeTitle"), onclick: guessFromMinutes }, t("hints.guessTime")),
+    h("button", { type: "button", class: "mini ghost wide", style: "white-space:nowrap", title: t("hints.guessSwTitle"), onclick: guessFromSwallows }, t("hints.guessSw")),
     gNote));
 }
 
@@ -3033,7 +3038,7 @@ function buildScaleSection(entry, feedMlHolder) {
   const mkSlot = (key, label) => {
     const wrap = h("div", { class: "scaleslot" });
     let img = null, btnCam = null, btnUp = null, fileCam = null, fileUp = null;
-    const kg = h("input", { type: "text", inputMode: "decimal", class: "scalekg", placeholder: `${t("scale.kg")}…` });
+    const kg = h("input", { type: "text", inputMode: "decimal", class: "scalekg", placeholder: t("scale.valuePh"), title: t("scale.badKg") });
     const note = h("small", { class: "hint" });
     if (mode === "photo") {
       img = h("img", { class: "thumb hidden", alt: "" });

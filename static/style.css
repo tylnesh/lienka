@@ -191,9 +191,9 @@ main { max-width: 1180px; margin: 0 auto; padding: 14px 14px calc(var(--tabbar-h
 }
 .qtile .qt { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; overflow: hidden; }
 .qtile .qt b { font-size: 14.5px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden; }
+  -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .qtile .qt small { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden; }
+  -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .qtile .qgo { margin-left: auto; color: var(--muted); }
 
 .fastrow { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -210,7 +210,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 14px 14px calc(var(--tabbar-h
 .tbtn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
-  border-radius: 12px; padding: 12px 10px; cursor: pointer; font-size: 14px; font-weight: 550;
+  border-radius: 12px; padding: 12px 8px; cursor: pointer; font-size: 13.5px; font-weight: 550;
+  overflow-wrap: anywhere; min-width: 0;
 }
 .tbtn:active { transform: scale(.97); }
 .tbtn:hover { border-color: color-mix(in srgb, var(--kc, var(--accent)) 55%, var(--line)); }
@@ -255,8 +256,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 14px 14px calc(var(--tabbar-h
 .seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 11px;
   border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 550; white-space: nowrap; }
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 5px rgba(0,0,0,.2); }
-.setrow > .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.setrow > .seg::-webkit-scrollbar { display: none; }
+.setrow > .seg { max-width: 100%; flex-wrap: wrap; justify-content: flex-end; }
 
 .chips { display: flex; gap: 7px; flex-wrap: wrap; }
 .flabel { font-size: 11.5px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; letter-spacing: .3px; }
