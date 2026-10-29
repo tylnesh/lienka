@@ -1263,7 +1263,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
-    def _filtered(self) -> tuple[list, dict]:
+    def _filtered(self, unlimited: bool = False) -> tuple[list, dict]:
         q = self._query()
         where, args = [], []
         if valid_day(q.get("from", "")):
@@ -1278,12 +1278,16 @@ class Handler(BaseHTTPRequestHandler):
         if q.get("kind") in KINDS:
             where.append("kind = ?")
             args.append(q["kind"])
-        limit = clean_int(q.get("limit"), "limit", {}, 5000) or 500
         sql = "SELECT * FROM entries"
         if where:
             sql += " WHERE " + " AND ".join(where)
-        sql += " ORDER BY at DESC, id DESC LIMIT ?"
-        args.append(limit)
+        sql += " ORDER BY at DESC, id DESC"
+        # The CSV export is a full dump of the matching history — unlike /api/entries it must
+        # never silently stop at the page limit (a real database crossed 500 rows in production).
+        if not unlimited:
+            limit = clean_int(q.get("limit"), "limit", {}, 5000) or 500
+            sql += " LIMIT ?"
+            args.append(limit)
         with db() as conn:
             rows = conn.execute(sql, args).fetchall()
         return [row_to_dict(r) for r in rows], q
@@ -1293,7 +1297,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(HTTPStatus.OK, {"entries": rows})
 
     def _csv(self) -> None:
-        rows, _ = self._filtered()
+        rows, _ = self._filtered(unlimited=True)
         rows.reverse()
         out = [",".join(FIELDS)]
         for row in rows:
