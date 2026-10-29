@@ -3,7 +3,7 @@
 
 /* baby-log PWA — views: today / log / stats / insights, entry editing in a modal sheet. */
 
-const API = { meta: "/api/meta", settings: "/api/settings", entries: "/api/entries", summary: "/api/summary", stash: "/api/stash", stashFreeze: "/api/stash/freeze", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
+const API = { meta: "/api/meta", settings: "/api/settings", entries: "/api/entries", summary: "/api/summary", stash: "/api/stash", stashFreeze: "/api/stash/freeze", pet: "/api/pet", tasks: "/api/tasks", taskCheckins: "/api/task_checkins", llm: "/api/llm", llmScale: "/api/llm/scale" };
 
 const I18N = {
   sk: {
@@ -53,6 +53,37 @@ const I18N = {
       delta: "Vypila: +{g} g (~{ml} ml)", bad: "Rozdiel {g} g nedáva zmysel – skontrolujte hodnoty.",
       offer: "Chcete doplniť fotky z váh?", offerBtn: "Doplniť váhy",
       photosFail: "Záznam uložený, fotky sa nepodarilo nahrať.",
+    },
+    pet: {
+      title: "Lienka",
+      mood_radiant: "Žiari šťastím", mood_happy: "V dobrej nálade", mood_content: "V pohode",
+      mood_sleepy: "Ospalá", mood_asleep: "Driemka",
+      reason: {
+        just_logged: "Práve si ju niekto všimol — čerstvý záznam ju najviac teší.",
+        steady_today: "Dnešný deň starostlivosti pekne plynie.",
+        quiet_day: "Dnes toho zatiaľ málo — jeden malý záznam a opäť ožije.",
+        long_quiet: "Aj dlhé ticho patrí k starostlivosti. Ozvi sa, keď budeš mať chvíľku.",
+        very_quiet: "Zakrulila sa a driemka. Nič nie je stratené — každý nový záznam ju prebudí.",
+      },
+      energy: "Energia", days_hint: "{n} z posledných {d} dní so záznamom",
+      spots_hint: "Nová bodka každých ~52 týždňov – všetkých sedem na prvé narodeniny",
+      new_spot: "Lienke pribudla nová bodka!",
+      say: {
+        record_sleep: "Nový spánkový rekord: {h} h v kuse (doterajšie maximum {prev} h). 🎉",
+        week_gain: "Váženie ukazuje plus {g} g za posledných {days} dní.",
+        seen_run: "{n} dní po sebe so záznamom – každý deň je vidno, že tam ste.",
+        weeks_birthday: "Presne {w} týždňov. O kúsok viac sveta, o kúsok viac vás.",
+        stash_grew: "Dnes plus {ml} ml, v zásobe je {bank} ml.",
+        no_walk: "Posledná prechádzka bola pred {d} dňami – vonku sa niečo deje. 🍃",
+        tips_wait: "Medzitým v Tipoch: niečo čaká na tvoj pohľad.",
+      },
+      flavorPrompt: "Si Lienka, drobná lienka strážkyňa bábätka. Prepíš jednu krátku poznámku pre unavených rodičov, celú v {langName}. Presne zachovaj význam aj každé jedno číslo – žiadne nové fakty, žiadne rady navyše, jedna veta, bez odrážok.",
+      tap_hint: "Klepni a Lienka povypráva viac",
+      sheet_title: "Čo hovorí Lienka",
+      g_celebrate: "Oslavy", g_notes: "Povšimnutia", g_watch: "Zaznamenali sme (zo zdrojov)",
+      sheet_empty: "Dnes nič mimoriadne – len tichý chvostik a spokojná lienka.",
+      src_note: "Podklady:", open_tips: "Otvoriť Tipy",
+      ai_flavor: "Ozvuka od asistenta (BYO-LLM) – čísla aj význam zostávajú z vašich záznamov.",
     },
     save: "Uložiť", cancel: "Zrušiť", delete: "Vymazať", edit: "Upraviť", none: "—", now: "teraz",
     confirmDelete: "Vymazať?", confirmDelete2: "Naozaj vymazať",
@@ -140,6 +171,8 @@ const I18N = {
       title: "Nastavenia", language: "Jazyk", theme: "Téma", themeAuto: "Auto", themeDark: "Tmavá", themeLight: "Svetlá",
       anim: "Animácie", animSub: "Jemné prechody pri prepínaní a odozvách", animAuto: "Auto", animOn: "Zapnuté", animOff: "Vypnuté",
       scale: "Meranie z váh", scaleSub: "Fotku displeja váh odfotíš alebo nahráš z galérie. Hodnoty pred/po kŕmení vieme aj bez fotky – stačí zadať kg a mlieko sa dopočíta samo.", scalePhoto: "Foto + ručne", scaleManual: "Len ručne", scaleOff: "Vypnuté",
+      pet: "Lienka – spoločníčka", petSub: "Dobrovoľná mini Tamagotchi – jej nálada rastie z vašich záznamov. Nikdy nezomrie, pri dlhom tichu len zadriemka. Zapína sa len pre toto zariadenie.",
+      petFlavor: "Reči lienky", petFlavorSub: "Auto pridá obmenu frázy, keď je zapnutý asistent (BYO-LLM). Čísla aj význam sa nikdy nemenia – nedodrží-li ich, vráti sa šablóna.", petFlavorAuto: "Auto", petFlavorTpl: "Len šablóny",
       sources: "Zdroje odporúčaní", sourcesSub: "Klikni, ktoré zdroje sa môžu citovať v Tipoch. Hranice hodnôt zostávajú najkonzervatívnejšie bez ohľadu na výber.", sourcesAll: "Zapnúť všetko",
       qkTitle: "Rýchle záznamy", qkSub: "Uprav dlaždice, skupiny a medzery na karte Dnes; pridaj aj liek či aktivitu na jeden klik.", qkEdit: "Usporiadať", qkAddSub: "Pridať dlaždicu na jeden klik", qkMedPh: "názov lieku", qkActPh: "názov aktivity", qkDosePh: "dávka (voliteľné)", qkAdd: "Pridať", qkDel: "Odstrániť", qkUp: "Posunúť hore", qkDown: "Posunúť dole", qkTypeMed: "liek", qkTypeAct: "aktivita",
       qkPausable: "Pozastaviteľná (spustí živý časovač)", qkGroups: "Skupiny a medzery",
@@ -301,6 +334,37 @@ const I18N = {
       offer: "Add scale photos?", offerBtn: "Add scale",
       photosFail: "Entry saved, photos could not be uploaded.",
     },
+    pet: {
+      title: "Lienka",
+      mood_radiant: "Beaming", mood_happy: "Cheerful", mood_content: "Content",
+      mood_sleepy: "Sleepy", mood_asleep: "Dozing",
+      reason: {
+        just_logged: "Someone just noticed her — a fresh log makes her day.",
+        steady_today: "A good day of care is flowing.",
+        quiet_day: "Quiet so far today — one small log and she perks right up.",
+        long_quiet: "Long silences count as caring too. Say hi whenever you can.",
+        very_quiet: "She curled up for a nap. Nothing is lost — any new log wakes her up.",
+      },
+      energy: "Energy", days_hint: "{n} of the last {d} days logged",
+      spots_hint: "A new spot every ~52 weeks — all seven on the first birthday",
+      new_spot: "Lienka grew a new spot!",
+      say: {
+        record_sleep: "New sleep record: {h} h straight (previous best {prev} h). 🎉",
+        week_gain: "The scale says +{g} g over the last {days} days.",
+        seen_run: "{n} days in a row with logs — she notices you show up every day.",
+        weeks_birthday: "Exactly {w} weeks today. A bit more of the world, a bit more of you.",
+        stash_grew: "+{ml} ml today — the bank holds {bank} ml.",
+        no_walk: "Last walk was {d} days ago — something's happening outside. 🍃",
+        tips_wait: "Meanwhile, in Tips: something is waiting for a glance.",
+      },
+      flavorPrompt: "You are Lienka, a tiny ladybug guardian of a baby. Rephrase one short remark for tired parents, entirely in {langName}. Keep the meaning and every single number exactly as given — no new facts, no extra advice, one sentence, no bullet points.",
+      tap_hint: "Tap her and Lienka tells you more",
+      sheet_title: "What Lienka says",
+      g_celebrate: "Celebrations", g_notes: "Little observations", g_watch: "Flagged for you (sourced)",
+      sheet_empty: "Nothing out of the ordinary today — just a quiet little tail and a content ladybug.",
+      src_note: "Sources:", open_tips: "Open Tips",
+      ai_flavor: "Assistant flavor (BYO-LLM) — numbers and meaning stay from your records.",
+    },
     save: "Save", cancel: "Cancel", delete: "Delete", edit: "Edit", none: "—", now: "now",
     confirmDelete: "Delete?", confirmDelete2: "Really delete",
     startSleep: "Start sleep", stopSleep: "Stop sleep", stopFeed: "Stop feed",
@@ -386,6 +450,8 @@ const I18N = {
       title: "Settings", language: "Language", theme: "Theme", themeAuto: "Auto", themeDark: "Dark", themeLight: "Light",
       anim: "Animations", animSub: "Gentle transitions when navigating and acting", animAuto: "Auto", animOn: "On", animOff: "Off",
       scale: "Scale weigh-ins", scaleSub: "Take a photo of the scale display or upload one from your gallery. Before/after weights work without photos too – enter the kg and the milk amount is computed for you.", scalePhoto: "Photo + manual", scaleManual: "Manual only", scaleOff: "Off",
+      pet: "Lienka buddy", petSub: "An optional tiny Tamagotchi whose mood reads your logs. She can never die — a long quiet spell only makes her doze. On/off for this device only.",
+      petFlavor: "Lienka's voice", petFlavorSub: "Auto adds phrasing variety when the BYO-LLM assistant is on. Numbers and meaning never change — a rephrase that breaks them falls back to the template.", petFlavorAuto: "Auto", petFlavorTpl: "Templates only",
       sources: "Recommendation sources", sourcesSub: "Choose which sources may be cited in Tips. Thresholds stay the most conservative regardless of selection.", sourcesAll: "Enable all",
       qkTitle: "Quick log shortcuts", qkSub: "Edit the tiles, groups and gaps of the Today card; add one-tap medications or activities.", qkEdit: "Arrange", qkAddSub: "Add a one-tap tile", qkMedPh: "medication name", qkActPh: "activity name", qkDosePh: "dose (optional)", qkAdd: "Add", qkDel: "Delete", qkUp: "Move up", qkDown: "Move down", qkTypeMed: "med", qkTypeAct: "activity",
       qkPausable: "Pausable (starts a live timer)", qkGroups: "Groups and gaps",
@@ -570,6 +636,10 @@ let liveInterval = null;
 let lastFeedAt = null;
 let tasks = [];
 let taskCheckins = [];
+let petData = null;  // optional "Lienka buddy" state (v1.25), derived server-side per request
+let noticeSnapshot = { signals: [], rows: [] };  // latest visible signals from the notices card, shared with the pet sheet
+let petSay = [];  // current murmurs rendered into the speech bubble
+let petIdx = 0;
 const TASK_ICONS = ["bell", "pill", "calendar", "heart", "sun", "moon", "star", "walk", "bath", "bottle", "scale", "note", "clock", "home", "check"];
 const TASK_COLORS = ["#2f8f78", "#d9822b", "#5b8def", "#b56576", "#8b5cf6", "#d64545", "#6b7280"];
 let remindedAt = 0;
@@ -1418,7 +1488,9 @@ function importantNoticesCard() {
       rows = await loadEntries({ from: ctx.days[0] ? ctx.days[0].date : null, limit: 5000 });
     } catch { /* offline: notices may be incomplete */ }
     items = analyzeSignals(rows, ctx.completed, ctx.ageDays, ctx.nowStamp).concat(thresholdSignals(rows, ctx));
+    noticeSnapshot = { signals: visibleSignals(items), rows };
     paint();
+    paintPetBubble();  // her watch-pointer murmur depends on what we just found
   })().catch(() => {});
   return card;
 }
@@ -1448,7 +1520,14 @@ function renderToday() {
   right.append(nextFeedCard());
   right.append(lastEventsCard());
 
-  root.append(...(meta && meta.setup_needed ? [setupCard()] : []), importantNoticesCard(), remindersCard(), quick, right);
+  root.append(...(meta && meta.setup_needed ? [setupCard()] : []),
+    ...(petMode() && petData && petData.exists ? [petCard()] : []),
+    importantNoticesCard(), remindersCard(), quick, right);
+  if (petMode()) requestAnimationFrame(() => {
+    paintPetBubble();
+    // grow the energy bar in from zero on mount (CSS transition does the easing)
+    document.querySelectorAll("#view-today .petmeter i[data-w]").forEach((el) => { el.style.width = el.dataset.w; });
+  });
 }
 
 function quickGrid() {
@@ -1754,6 +1833,218 @@ async function deleteEntry(entry, rowEl) {
 }
 
 /* ---------- log view ---------- */
+
+// ---------- Lienka buddy (optional Tamagotchi card on Today, v1.25) ----------
+const PET_MOODS = ["radiant", "happy", "content", "sleepy", "asleep"];
+
+function petMode() { return localStorage.getItem("baby.pet") === "on"; }
+
+async function loadPet() {
+  if (!petMode()) { petData = null; return; }
+  let data = null;
+  try { data = await api(API.pet); } catch { return; }  // offline: keep the last known mood
+  if (data && data.exists) {
+    const raw = localStorage.getItem("baby.petSpots");
+    const seen = raw === null ? -1 : Number(raw);  // first sighting records quietly, no toast
+    let grew = false;
+    if (Number.isFinite(seen) && seen >= 0 && Number(data.spots) > seen) { toast(t("pet.new_spot"), { icon: "star" }); grew = true; }
+    if (seen !== Number(data.spots)) localStorage.setItem("baby.petSpots", String(data.spots));
+    // one-shot hop-celebration when she visibly perks up (lower index = brighter mood)
+    // or gains a spot (flag consumed once by petCard)
+    const moodIdx = PET_MOODS.indexOf(data.mood);
+    const prevMood = Number(sessionStorage.getItem("baby.petMood"));
+    if (moodIdx >= 0) {
+      if (grew || (Number.isFinite(prevMood) && prevMood >= 0 && moodIdx < prevMood)) sessionStorage.setItem("baby.petHop", "1");
+      sessionStorage.setItem("baby.petMood", String(moodIdx));
+    }
+  }
+  petData = data;
+}
+
+// The seven traditional ladybug spots; growth interleaves left/right so they alternate sides,
+// and the scutellum spot straddling the seam near the head is the seventh — first-birthday one.
+const PET_SPOTS_L = [[16.5, 20], [12.5, 29], [18, 38]];
+const PET_SPOTS_R = [[31.5, 20], [35.5, 29], [30, 38]];
+const spotDot = ([x, y]) => `<circle class="pet-spot" cx="${x}" cy="${y}" r="3.3"/>`;
+
+function ladybugSvg(spots, mood) {
+  const n = Math.max(0, Math.min(7, Number(spots) || 0));
+  const dotsL = PET_SPOTS_L.filter((_, i) => i * 2 < n).map(spotDot).join("");
+  const dotsR = PET_SPOTS_R.filter((_, i) => i * 2 + 1 < n).map(spotDot).join("");
+  const scutum = n === 7 ? '<circle class="pet-spot" cx="24" cy="16" r="3.6"/>' : "";
+  const sleepy = mood === "sleepy" || mood === "asleep";
+  const face = sleepy
+    ? '<path class="pet-closed" d="M20.2 9.6c.7.9 1.9.9 2.6 0M25.2 9.6c.7.9 1.9.9 2.6 0"/>'
+    : '<circle class="pet-eye" cx="21.5" cy="9.4" r="1.05"/><circle class="pet-eye" cx="26.5" cy="9.4" r="1.05"/>';
+  const zzz = mood === "asleep" ? '<text class="pet-z z1" x="39" y="9">z</text><text class="pet-z z2" x="43" y="5">z</text>' : "";
+  const sparks = mood === "radiant"
+    ? '<g class="pet-spark s1"><path d="M6 12l1 2.6 2.6 1-2.6 1L6 19.2 5 16.6 2.4 15.6 5 14.6z"/></g>' +
+      '<g class="pet-spark s2"><path d="M43.5 20l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></g>'
+    : "";
+  // Wings are two half-shells in groups, so they can flutter open around the head (CSS) with
+  // their spots riding along; the dark under-shell only peeks through the seam when they do.
+  return `<svg viewBox="0 0 48 48" class="ladybug" aria-hidden="true">` +
+    `<circle class="pet-glow" cx="24" cy="26" r="17.5"/>` +
+    `<ellipse class="pet-shadow" cx="24" cy="45.8" rx="10.5" ry="1.9"/>` +
+    `<g class="pet-all">` +
+    `<g class="pet-a pet-a-l"><path class="pet-line" d="M20.5 6.5C18.5 3.8 16 2.6 13.8 2.2"/><circle class="pet-head" cx="13.4" cy="2.4" r="1.3"/></g>` +
+    `<g class="pet-a pet-a-r"><path class="pet-line" d="M27.5 6.5c2-2.7 4.5-3.9 6.7-4.3"/><circle class="pet-head" cx="34.6" cy="2.2" r="1.3"/></g>` +
+    `<ellipse class="pet-under" cx="24" cy="28" rx="13.4" ry="14.2"/>` +
+    `<g class="pet-w pet-w-l"><path class="pet-shell" d="M24 13c-8.5 1-14.5 7-14.5 15 0 8.3 5.5 15 13.3 15H24z"/>${dotsL}<ellipse class="pet-shine" cx="17.5" cy="19.5" rx="4.6" ry="2.4" transform="rotate(-24 17.5 19.5)"/></g>` +
+    `<g class="pet-w pet-w-r"><path class="pet-shell" d="M24 13c8.5 1 14.5 7 14.5 15 0 8.3-5.5 15-13.3 15H24z"/>${dotsR}</g>` +
+    scutum +
+    `<circle class="pet-head" cx="24" cy="9" r="6"/>${face}` +
+    `</g>${zzz}${sparks}</svg>`;
+}
+
+function petCard() {
+  const p = petData || {};
+  const mood = PET_MOODS.includes(p.mood) ? p.mood : "content";
+  const energy = Math.max(0, Math.min(100, Number(p.energy) || 0));
+  const spots = Math.max(0, Math.min(7, Number(p.spots) || 0));
+  const hop = sessionStorage.getItem("baby.petHop") === "1";
+  if (hop) sessionStorage.removeItem("baby.petHop");
+  return h("section", { class: `card pet-card full mood-${mood}${hop ? " pet-hop" : ""}` },
+    h("span", { class: "pet-bug", html: ladybugSvg(spots, mood) }),
+    h("div", { class: "pet-bubbleholder hidden" }),
+    h("div", { class: "pet-text" },
+      h("b", {}, `${t("pet.title")} · ${t(`pet.mood_${mood}`)}`),
+      h("small", { class: "muted" }, t(`pet.reason.${p.reason}`)),
+      h("div", { class: "petmeter", title: t("pet.energy"), role: "progressbar", "aria-label": t("pet.energy"), "aria-valuenow": String(energy), "aria-valuemin": "0", "aria-valuemax": "100" },
+        h("i", { "data-w": `${Math.max(4, energy)}%`, style: "width:0%" })),
+      h("small", { class: "muted pet-sub", title: t("pet.spots_hint") },
+        `${"●".repeat(spots)}${"○".repeat(7 - spots)} · ${t("pet.days_hint", { n: Number(p.days_logged_7) || 0, d: 7 })}`)
+    )
+  );
+}
+
+// --- her murmurs: server facts + a pointer to sourced Tips -------------------------------
+function fmtMurmur(m) {
+  const params = {};
+  for (const [k, v] of Object.entries(m.params || {})) params[k] = typeof v === "number" ? fmtNum(v) : v;
+  return t(`pet.say.${m.code}`, params);
+}
+
+function petMurmurs() {
+  const list = [];
+  if (noticeSnapshot.signals.some((s) => s.sev !== "info")) list.push({ tone: "watch", text: t("pet.say.tips_wait") });
+  for (const m of (petData && petData.murmurs) || []) {
+    const line = fmtMurmur(m);
+    if (!line.startsWith("pet.")) list.push({ tone: m.tone, code: m.code, params: m.params || {}, text: line });
+  }
+  return list;
+}
+
+// --- optional LLM flavor: templates keep the facts, the assistant only varies phrasing ----
+const petFlavorCache = new Map();
+const petFlavorBad = new Set();
+const petFlavorBusy = new Set();
+
+function petFlavorOn() { return (localStorage.getItem("baby.petFlavor") || "auto") === "auto"; }
+function flavorKey(m) { return `${lang}|${m.code}|${JSON.stringify(m.params || {})}`; }
+function flavorUsable(m) {
+  return Boolean(m && m.code && petFlavorOn() && llmCfg && llmCfg.provider !== "off" && llmCfg.model)
+    && !petFlavorBad.has(m.code) && !petFlavorCache.has(flavorKey(m));
+}
+function flavorNumbersOk(base, out) {
+  if (!out || out.length > 220 || /[\n*#|`]/.test(out)) return false;
+  const nums = base.match(/\d+(?:[.,]\d+)?/g) || [];
+  return nums.every((n) => out.includes(n));
+}
+
+function renderBubbleText(btn, m, flavored) {
+  btn.innerHTML = "";
+  btn.append(h("span", { class: "btxt" }, flavored ? petFlavorCache.get(flavorKey(m)) : m.text));
+  if (flavored) btn.append(h("span", { class: "pet-ai", title: t("pet.ai_flavor") }, "✦"));
+}
+
+async function polishMurmur(m, btn) {
+  if (!flavorUsable(m)) return;
+  const key = flavorKey(m);
+  if (petFlavorBusy.has(key)) return;
+  petFlavorBusy.add(key);
+  try {
+    const d = await api(`${API.llm}/chat`, { method: "POST", body: JSON.stringify({ messages: [
+      { role: "system", content: t("pet.flavorPrompt", { langName: lang === "sk" ? "slovenčine" : "English" }) },
+      { role: "user", content: m.text },
+    ] }) });
+    const reply = String((d && d.reply) || "").trim().replace(/\s+/g, " ");
+    if (flavorNumbersOk(m.text, reply)) petFlavorCache.set(key, reply);
+    else petFlavorBad.add(m.code);  // a sloppy reply blacklists the code for this session, no hammering
+  } catch {
+    petFlavorBad.add(m.code);
+  } finally {
+    petFlavorBusy.delete(key);
+  }
+  const live = document.querySelector("#view-today .pet-bubble");
+  if (live && live.dataset.key === key && petFlavorCache.has(key)) {
+    renderBubbleText(live, m, true);
+    if (animSetting() !== "off" && live.animate) live.animate(
+      [{ opacity: 0.2, transform: "scale(.97)" }, { opacity: 1, transform: "none" }],
+      { duration: 420, easing: "cubic-bezier(.34, 1.56, .64, 1)" });
+  }
+}
+
+function paintPetBubble() {
+  const holder = document.querySelector("#view-today .pet-bubbleholder");
+  if (!holder) return;
+  petSay = petMurmurs();
+  holder.innerHTML = "";
+  if (!petSay.length) { holder.classList.add("hidden"); return; }
+  holder.classList.remove("hidden");
+  if (!(petIdx >= 0 && petIdx < petSay.length)) petIdx = 0;
+  const m = petSay[petIdx];
+  const btn = h("button", { type: "button", class: `pet-bubble tone-${m.tone}`, title: t("pet.tap_hint"), "aria-label": t("pet.sheet_title"), onclick: () => openPetSheet() });
+  btn.dataset.key = m.code ? flavorKey(m) : `${lang}|watch`;
+  renderBubbleText(btn, m, Boolean(m.code && petFlavorOn() && petFlavorCache.has(flavorKey(m))));
+  holder.append(btn);
+  if (animSetting() !== "off" && btn.animate) btn.animate(
+    [{ opacity: 0.15, transform: "scale(.93)" }, { opacity: 1, transform: "none" }],
+    { duration: 420, easing: "cubic-bezier(.34, 1.56, .64, 1)" });  // springy pop-in from the bug's side
+  polishMurmur(m, btn);
+}
+
+function openPetSheet() {
+  $("listTitle").textContent = t("pet.sheet_title");
+  $("listClose").innerHTML = icon("x", "sm");
+  const body = $("listBody");
+  body.innerHTML = "";
+  const list = petMurmurs();
+  const rank = { bad: 0, warn: 1 };
+  const watch = noticeSnapshot.signals.filter((s) => s.sev !== "info").sort((a, b) => rank[a.sev] - rank[b.sev]).slice(0, 6);
+  if (!list.length && !watch.length) {
+    body.append(h("p", { class: "muted" }, t("pet.sheet_empty")));
+  } else {
+    for (const [tone, label] of [["cheer", t("pet.g_celebrate")], ["note", t("pet.g_notes")]]) {
+      const rows = list.filter((x) => x.tone === tone || (tone === "note" && x.tone === "gentle"));
+      if (!rows.length) continue;
+      body.append(h("div", { class: "cardhead" }, h("h2", {}, label)));
+      for (const m of rows) body.append(h("div", { class: `petsay tone-${m.tone}` },
+        h("span", {}, m.text),
+        m.code && petFlavorOn() && petFlavorCache.has(flavorKey(m)) ? h("span", { class: "pet-ai", title: t("pet.ai_flavor") }, "✦") : null));
+    }
+  }
+  if (watch.length) {
+    body.append(h("div", { class: "cardhead" }, h("h2", {}, t("pet.g_watch"))));
+    const repaint = () => openPetSheet();
+    body.append(h("ul", { class: "petwatch" }, watch.map((s) => {
+      const text = signalText(s);
+      return h("li", { class: s.sev },
+        h("span", { class: "stext" }, text),
+        h("span", { class: "sact" }, sourceButton(s, noticeSnapshot.rows), ackButton(s, text, repaint), dismissButton(s, text, repaint)));
+    })));
+    const cited = [...new Set(watch.flatMap((s) => SIG_SRC[s.key] || []))].filter((id) => SOURCES[id] && srcOn(id));
+    body.append(h("p", { class: "petsrc" },
+      h("span", { class: "muted" }, t("pet.src_note")),
+      ...cited.map((id) => srcTag(id, "")),
+      watch.some((s) => !SIG_SRC[s.key]) ? h("span", { class: "tag" }, t("insights.srcUnsourced")) : null));
+    body.append(h("div", { class: "rowbtns" }, h("button", {
+      type: "button", class: "ghost", onclick: () => { closeSheet($("listDialog")); go("insights"); },
+    }, t("pet.open_tips"))));
+  }
+  if (list.length || watch.length) body.append(h("p", { class: "disclaimer" }, t("insights.disclaimer")));
+  $("listDialog").showModal();
+}
 
 function renderLog() {
   const root = $("view-log");
@@ -2660,6 +2951,20 @@ const SRC_FOR = {
   wet: ["S31", "S29"],
   stool: ["S31", "S29"],
   fever: ["S116", "S117"],
+};
+
+// Which registered sources back each threshold signal Lienka may voice in her detail sheet.
+// Signals absent here are arithmetic facts about the user's own entries (duplicates, overlaps…)
+// and carry the unsourced tag instead — she never invents citations.
+const SIG_SRC = {
+  sigWetLowTitle: SRC_FOR.wet,
+  sigStoolLowTitle: SRC_FOR.stool,
+  sigFeedGapTitle: SRC_FOR.feedGap,
+  sigWeightLowTitle: SRC_FOR.weightVel,
+  sigWeightWatchTitle: SRC_FOR.weightVel,
+  sigTempHighTitle: SRC_FOR.fever,
+  sigTempLowTitle: SRC_FOR.fever,
+  sigStoolColourTitle: ["S122", "S123"],
 };
 
 function srcOffList() { try { const v = JSON.parse(localStorage.getItem("baby.srcOff") || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } }
@@ -4365,6 +4670,24 @@ function openSettings() {
   ));
 
   body.append(h("div", { class: "setrow" },
+    h("span", { class: "lbl" }, h("b", {}, t("settings.pet")), h("small", {}, t("settings.petSub"))),
+    h("button", {
+      type: "button", class: "switch" + (petMode() ? " on" : ""), "aria-label": t("settings.pet"),
+      onclick: () => {
+        localStorage.setItem("baby.pet", petMode() ? "off" : "on");
+        openSettings();
+        refresh().catch(() => {});
+      },
+    })
+  ));
+
+  body.append(h("div", { class: "setrow" },
+    h("span", { class: "lbl" }, h("b", {}, t("settings.petFlavor")), h("small", {}, t("settings.petFlavorSub"))),
+    seg([["auto", t("settings.petFlavorAuto")], ["off", t("settings.petFlavorTpl")]], petFlavorOn() ? "auto" : "off",
+      (v) => { localStorage.setItem("baby.petFlavor", v); openSettings(); paintPetBubble(); })
+  ));
+
+  body.append(h("div", { class: "setrow" },
     h("span", { class: "lbl" }, h("b", {}, t("settings.scale")), h("small", {}, t("settings.scaleSub"))),
     seg([["photo", t("settings.scalePhoto")], ["manual", t("settings.scaleManual")], ["off", t("settings.scaleOff")]], scaleMode(),
       (v) => { localStorage.setItem("baby.scaleMode", v); openSettings(); })
@@ -4786,7 +5109,7 @@ async function loadTasks() {
 }
 
 async function refresh() {
-  await Promise.all([loadSummary(), loadTasks(), (async () => {
+  await Promise.all([loadSummary(), loadTasks(), loadPet(), (async () => {
     if (view === "today") {
       try {
         const [feeds, pumps] = await Promise.all([
@@ -4875,6 +5198,13 @@ async function init() {
   await refresh();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   setInterval(() => refresh().catch(() => {}), 120000);
+  setInterval(() => {  // Lienka rotates her speech bubble while Today is up
+    if (view !== "today" || !petMode()) return;
+    const holder = document.querySelector("#view-today .pet-bubbleholder");
+    if (!holder || holder.classList.contains("hidden")) return;
+    petIdx = petSay.length ? (petIdx + 1) % petSay.length : 0;
+    paintPetBubble();
+  }, 45000);
 }
 
 init();

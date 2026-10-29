@@ -12,6 +12,7 @@ The client is a plain PWA (installable, offline shell) served by the same proces
 - **Insights** — deterministic checks computed from your records against registered references (WHO, NHS, ABM, Slovak MZ SR guidance for BFHI care); no AI, no network calls, every threshold shows its source or is marked `[unsourced]`. Not medical advice.
 - **Doctor view** — pediatrician-question checklist generated from the same signals; copy to clipboard for the visit.
 - Recurring reminders with `.ics` export, CSV export, dark/light theme, SK + EN UI, optional scale-photo OCR for feeding weights, optional BYO-LLM assistant that auto-detects local runners (Ollama, LM Studio, vLLM, llama.cpp/LocalAI, Jan, GPT4All, KoboldCpp) — off by default, keys stay server-side, see `server.py`.
+- **Lienka buddy (optional, v1.25)** — a tiny Tamagotchi-style ladybug on Today whose mood, energy and spots are *derived live from your own logs*: she hatches with the first entry, perks up on every new one and dozes during long quiet spells, but **can never die or be failed**, and the message during silence is "long silences count as caring too", never guilt. Spots grow with the baby's age — one every ~52 weeks, the full seven around the first birthday. Nothing about her is stored: `GET /api/pet` recomputes her from the entries on every request, so backups/restores/CSV round-trips need no extra state. She also wears a **speech bubble**: short murmurs baked from pre-written bilingual phrases filled with real numbers from your data (a new sleep record, the weekly scale gain, a seen-for-N-days streak, a quiet walks stretch — facts only, never advice; anything threshold-based she only points to). Tap her to open *What Lienka says*: celebrations, gentle observations, and the currently flagged signals quoted exactly as Tips word them, **each with its registered source link or `[unsourced]`**, with the familiar ack/dismiss/edit controls and the not-medical-advice disclaimer. If the BYO-LLM assistant is configured, "voice: Auto" may let it rephrase a bubble line for variety — numbers are validated against the template and it silently falls back if the model breaks them; Settings → *Lienka's voice* keeps templates only. Off by default; Settings → *Lienka buddy* turns her on per device.
 
 Writes are currently unauthenticated, so **keep the instance on a trusted network** (LAN or your private tunnel) — never port-forward it to the internet. A token/PIN gate is planned (see Roadmap).
 
@@ -32,6 +33,10 @@ docker run -d --name lienka -p 8472:8472 -v $PWD/data:/data -e BIRTH_DATE=2026-0
 # or take a look first with a synthetic demo database (auto-resets on restart):
 docker build -t lienka . && docker run -d -p 8472:8472 -e DEMO=1 lienka
 ```
+
+### Upgrading to v1.25 (Lienka buddy)
+
+Nothing to do — one new read-only endpoint (`GET /api/pet`: mood/energy/spots plus up to four fact-only murmurs `{code, tone, params}`), a card with speech bubble, a *What Lienka says* sheet and two Settings toggles (buddy on/off, voice Auto/Templates — the LLM only ever rephrases, numbers are verified). The companion is **off by default** and both flags live only in each device's browser storage, so her appearance is purely a per-device choice; your data model is untouched. Smoke-test her against a scratch server with `python3 tools/tests/pet_api_test.py`.
 
 ### Upgrading to v1.24 (multi-tier milk storage)
 

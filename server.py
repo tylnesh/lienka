@@ -38,6 +38,9 @@ API:
     GET    /api/stash              milk bank as bags (one pumping session = one bag) with fridge/freezer tiers,
                                    linked + tier-aware FIFO draw-down, expiry buckets
     POST   /api/stash/freeze       {ids?} — move remaining fridge milk to the freezer tier with fresh dating
+    GET    /api/pet                optional "Lienka buddy" (Tamagotchi-ish companion): mood, energy and spots
+                                   derived purely from the entries on every request — nothing is stored;
+                                   includes up to 4 fact-only murmurs ({code,tone,params}) for her speech bubble
     GET    /export.csv?from=&to=
     GET    /healthz
 """
@@ -66,7 +69,7 @@ CERT = os.environ.get("CERT", "")
 KEY = os.environ.get("KEY", "")
 CA_CERT = os.environ.get("CA_CERT", "")
 BIRTH_DATE = os.environ.get("BIRTH_DATE", "")
-VERSION = "1.24"
+VERSION = "1.25"
 
 LOCK = threading.Lock()
 USERS = [u.strip() for u in os.environ.get("USERS", "parent1,parent2,others").split(",") if u.strip()] or ["parent1", "parent2", "others"]
@@ -581,6 +584,143 @@ def eff_minutes(at, end_at, pause_seconds=0, paused_at=None):
         secs -= max(0.0, (b - p).total_seconds())
     minutes = int(secs // 60)
     return minutes if 0 <= minutes <= 24 * 60 else None
+
+
+# --- Lienka buddy (GET /api/pet, opt-in in the client's Settings) ---------------------------
+# The little Tamagotchi is pure derivation: her mood, energy and spots are recomputed from the
+# entries on every request, nothing about her is stored. She can never fail or die — a long
+# quiet spell only makes her doze, and any single new log wakes her back up. Spots follow the
+# baby's age (one every ~52 weeks, all seven around the first birthday), not gamified XP.
+PET_MOODS = ["radiant", "happy", "content", "sleepy", "asleep"]
+PET_CARE_KINDS = {"diaper", "feed", "sleep", "pump", "walk", "bath", "medication", "activity"}
+# Murmurs are one-liner facts the guardian spirit can voice: celebrate or plainly observe,
+# never advise — thresholds with sources stay in Tips. code -> tone; display order below.
+PET_MURMUR_ORDER = [("record_sleep", "cheer"), ("week_gain", "cheer"), ("seen_run", "cheer"),
+                    ("weeks_birthday", "note"), ("stash_grew", "note"), ("no_walk", "gentle")]
+
+
+def milk_bank_ml(conn) -> int:
+    """Milk bank over ALL history: pumped minus what bottles of expressed milk took back out;
+    combined sessions (pump with fed_ml) already netted inside the pump sum."""
+    return conn.execute(
+        "SELECT COALESCE(SUM(COALESCE(pump_ml,0) - COALESCE(fed_ml,0)), 0) FROM entries WHERE kind='pump'"
+    ).fetchone()[0] - conn.execute(
+        "SELECT COALESCE(SUM(COALESCE(feed_ml,0)), 0) FROM entries"
+        " WHERE kind='feed' AND feed_method='bottle_expressed' AND (timer=0 OR end_at IS NOT NULL)"
+    ).fetchone()[0]
+
+
+def pet_murmurs(now_dt: datetime, age_days, sleep_rows, weight_rows, last_walk_at, walk_count,
+                today_pump_ml, bank_ml, day_set) -> list:
+    """Pure fact-check over aggregates; every murmur is measurable from the user's own entries.
+    Returns at most 4 {code, tone, params} objects in display priority order."""
+    today = now_dt.date()
+    found = {}
+
+    today_best = prev_best = 0
+    for at, end_at, pause_seconds, paused_at in sleep_rows:
+        minutes = eff_minutes(at, end_at, pause_seconds or 0, paused_at)
+        if not minutes or minutes < 60:
+            continue  # nobody needs a "record" for a half-hour nap
+        if at[:10] == today.isoformat():
+            today_best = max(today_best, minutes)
+        else:
+            prev_best = max(prev_best, minutes)
+    if today_best and prev_best and today_best > prev_best:
+        found["record_sleep"] = {"h": round(today_best / 60.0, 1), "prev": round(prev_best / 60.0, 1)}
+
+    weights = sorted(((date.fromisoformat(at[:10]), value) for at, value in weight_rows), reverse=True)
+    if weights:
+        newest_date, newest_value = weights[0]
+        anchors = [(d, v) for d, v in weights if 5 <= (newest_date - d).days <= 9]
+        if anchors:
+            anchor_date, anchor_value = max(anchors, key=lambda dv: dv[0])
+            delta = round(newest_value - anchor_value)
+            if delta > 0:
+                found["week_gain"] = {"g": delta, "days": (newest_date - anchor_date).days}
+
+    run = 0
+    day = today
+    while day.isoformat() in day_set and run < 7:
+        run += 1
+        day -= timedelta(days=1)
+    if run >= 3:
+        found["seen_run"] = {"n": run}
+
+    if age_days is not None and (age_days + 1) % 7 == 0:
+        found["weeks_birthday"] = {"w": (age_days + 1) // 7}
+
+    if bank_ml and today_pump_ml:
+        found["stash_grew"] = {"ml": round(today_pump_ml), "bank": round(bank_ml)}
+
+    if walk_count and last_walk_at:
+        quiet_days = (today - date.fromisoformat(last_walk_at[:10])).days
+        if quiet_days >= 3:
+            found["no_walk"] = {"d": quiet_days}
+
+    return [{"code": code, "tone": tone, "params": found[code]}
+            for code, tone in PET_MURMUR_ORDER if code in found][:4]
+
+
+def pet_expected_care(age_days):
+    """A forgiving daily floor of care events that keeps the bug lively, loosely tracking how
+    often newborns are logged versus toddlers. Deliberately generous: 100 % coverage is easy."""
+    if age_days is None:
+        return 10  # no birth date saved yet — a middling, forgiving default
+    if age_days <= 90:
+        return 12
+    if age_days <= 180:
+        return 10
+    if age_days <= 365:
+        return 8
+    return 6
+
+
+def derive_pet(now_dt: datetime, birth_iso: str, min_at: str, max_at: str, rows) -> dict:
+    """Pure function of (now, birth date, entry history). rows: [(kind, at), ...] from the
+    trailing 7 days; min_at/max_at span ALL entries. Never punitive by construction: quiet
+    time lowers energy at most to 0 ("asleep"), never removes the bug."""
+    today = now_dt.date()
+    birth = None
+    try:
+        if birth_iso:
+            d = date.fromisoformat(birth_iso)
+            if (today - d).days >= 0:  # a future-dated birth is junk, fall back to first log
+                birth = d
+    except ValueError:
+        pass
+    hatched = date.fromisoformat(min_at[:10])
+    age_days = (today - birth).days if birth else None
+    ref_age = age_days if birth is not None else max(0, (today - hatched).days)
+    spots = min(7, ref_age // 52)  # one spot per completed year-of-weeks; 7 at ~1 year old
+    try:
+        last_dt = datetime.strptime(max_at[:16], "%Y-%m-%dT%H:%M")
+    except ValueError:
+        last_dt = now_dt
+    hours = max(0.0, (now_dt - last_dt).total_seconds() / 3600.0)
+    days_logged = len({at[:10] for _k, at in rows})
+    care_today = sum(1 for k, at in rows if k in PET_CARE_KINDS and at[:10] == today.isoformat())
+    expected = pet_expected_care(age_days)
+    coverage = min(1.0, care_today / float(expected))
+    freshness = 1.0 if hours <= 6 else max(0.0, 1.0 - (hours - 6) / 42.0)  # reaches 0 at ~48 h
+    energy = int(round(100 * (0.55 * freshness + 0.45 * coverage)))
+    if energy >= 80 and hours <= 6:
+        mood, reason = "radiant", "just_logged"
+    elif energy >= 55:
+        mood, reason = "happy", "steady_today"
+    elif energy >= 30:
+        mood, reason = "content", "quiet_day"
+    elif energy >= 14:
+        mood, reason = "sleepy", "long_quiet"
+    else:
+        mood, reason = "asleep", "very_quiet"
+    return {
+        "exists": True, "mood": mood, "energy": energy, "reason": reason,
+        "spots": spots, "age_basis": "birth" if birth is not None else "first_log",
+        "age_days": age_days, "hatched_on": hatched.isoformat(), "days_logged_7": days_logged,
+        "care_today": care_today, "expected_today": expected,
+        "last_log_at": max_at[:16], "hours_since_log": round(hours, 1),
+    }
 
 
 def validate(body: dict) -> tuple[dict | None, dict]:
@@ -1102,6 +1242,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"photo_a": row["photo_a"], "photo_b": row["photo_b"]})
         elif path == "/api/summary":
             self._summary()
+        elif path == "/api/pet":
+            self._pet()
         elif path == "/api/stash":
             self._stash()
         elif path == "/api/tasks":
@@ -1174,14 +1316,7 @@ class Handler(BaseHTTPRequestHandler):
             rows = [row_to_dict(r) for r in conn.execute(
                 "SELECT * FROM entries WHERE at >= ? ORDER BY at ASC", (start + "T00:00",)
             ).fetchall()]
-            # milk bank over ALL history: pumped minus what bottles of expressed milk took back out;
-            # combined sessions (pump with fed_ml) already netted inside the pump sum
-            bank_ml = conn.execute(
-                "SELECT COALESCE(SUM(COALESCE(pump_ml,0) - COALESCE(fed_ml,0)), 0) FROM entries WHERE kind='pump'"
-            ).fetchone()[0] - conn.execute(
-                "SELECT COALESCE(SUM(COALESCE(feed_ml,0)), 0) FROM entries"
-                " WHERE kind='feed' AND feed_method='bottle_expressed' AND (timer=0 OR end_at IS NOT NULL)"
-            ).fetchone()[0]
+            bank_ml = milk_bank_ml(conn)  # milk bank over ALL history (shared with /api/pet)
         per_day: dict[str, dict] = {}
         weights = []
         heights = []
@@ -1283,6 +1418,47 @@ class Handler(BaseHTTPRequestHandler):
             ),
             "open_sleep": next((row for row in rows if row["kind"] == "sleep" and not row["end_at"]), None),
         })
+
+    def _pet(self) -> None:
+        """The optional Tamagotchi-style companion. Derived state only — GET is read-only and
+        the display toggle itself lives in each device's localStorage, so there is nothing to
+        keep in sync: backups, restores and CSV round-trips bring her back from the data."""
+        cfg = current_settings()
+        now_dt = datetime.now()
+        with db() as conn:
+            span = conn.execute("SELECT MIN(at), MAX(at) FROM entries").fetchone()
+            rows = conn.execute(
+                "SELECT kind, at FROM entries WHERE at >= ?",
+                ((now_dt.date() - timedelta(days=6)).isoformat() + "T00:00",),
+            ).fetchall()
+        if not span or not span[0] or not span[1]:
+            self._json(HTTPStatus.OK, {"exists": False})
+            return
+        try:
+            state = derive_pet(now_dt, cfg["birth_date"], span[0], span[1],
+                               [(r["kind"], r["at"]) for r in rows])
+            with db() as conn:
+                sleeps = [(r["at"], r["end_at"], r["pause_seconds"], r["paused_at"]) for r in conn.execute(
+                    "SELECT at, end_at, pause_seconds, paused_at FROM entries WHERE kind='sleep' AND end_at IS NOT NULL"
+                ).fetchall()]
+                weights = [(r["at"], r["value"]) for r in conn.execute(
+                    "SELECT at, value FROM entries WHERE kind='measure' AND measure_kind='weight_g'"
+                    " AND value IS NOT NULL ORDER BY at DESC LIMIT 40"
+                ).fetchall()]
+                walk = conn.execute("SELECT MAX(at), COUNT(*) FROM entries WHERE kind='walk'").fetchone()
+                today_pump = conn.execute(
+                    "SELECT COALESCE(SUM(pump_ml), 0) FROM entries WHERE kind='pump' AND at >= ?",
+                    (now_dt.date().isoformat() + "T00:00",),
+                ).fetchone()[0]
+                bank = milk_bank_ml(conn)
+            state["murmurs"] = pet_murmurs(
+                now_dt, state["age_days"], sleeps, weights, walk[0], walk[1], today_pump, bank,
+                {r["at"][:10] for r in rows},
+            )
+        except ValueError:  # an unparsable legacy timestamp must never take the endpoint down
+            self._json(HTTPStatus.OK, {"exists": False})
+            return
+        self._json(HTTPStatus.OK, state)
 
     def _stash(self) -> None:
         """Multi-tier milk bank. Every pumping session is one bag, stored either in the
