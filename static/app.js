@@ -76,11 +76,15 @@ const I18N = {
         stash_grew: "Dnes plus {ml} ml, v zásobe je {bank} ml.",
         no_walk: "Posledná prechádzka bola pred {d} dňami – vonku sa niečo deje. 🍃",
         tips_wait: "Medzitým v Tipoch: niečo čaká na tvoj pohľad.",
+        look_hungry: "Vyzerá hladnejšie, než hovoria referencie – čísla aj zdroje nájdeš jedným klepnutím.",
+        look_stuffed: "Guľato zasýtená: namerané mlieko prevyšuje referenciu pre jej vek. 🥛",
+        look_unwell: "Je horúca a slabá – stojí za to pozrieť zdrojové odporúčania v Tipoch.",
       },
       flavorPrompt: "Si Lienka, drobná lienka strážkyňa bábätka. Prepíš jednu krátku poznámku pre unavených rodičov, celú v {langName}. Presne zachovaj význam aj každé jedno číslo – žiadne nové fakty, žiadne rady navyše, jedna veta, bez odrážok.",
       tap_hint: "Klepni a Lienka povypráva viac",
       sheet_title: "Čo hovorí Lienka",
       g_celebrate: "Oslavy", g_notes: "Povšimnutia", g_watch: "Zaznamenali sme (zo zdrojov)",
+      g_feels: "Prečo tak vyzerá", intake_note: "dnes {ml} ml, referencia ~{lo}–{hi} ml/deň (len meraný príjem)",
       sheet_empty: "Dnes nič mimoriadne – len tichý chvostik a spokojná lienka.",
       src_note: "Podklady:", open_tips: "Otvoriť Tipy",
       ai_flavor: "Ozvuka od asistenta (BYO-LLM) – čísla aj význam zostávajú z vašich záznamov.",
@@ -356,11 +360,15 @@ const I18N = {
         stash_grew: "+{ml} ml today — the bank holds {bank} ml.",
         no_walk: "Last walk was {d} days ago — something's happening outside. 🍃",
         tips_wait: "Meanwhile, in Tips: something is waiting for a glance.",
+        look_hungry: "She looks hungrier than the references suggest — numbers and sources are one tap away.",
+        look_stuffed: "Round and milk-drunk: today's measured milk tops the reference for her age. 🥛",
+        look_unwell: "She feels hot and poorly — the sourced guidance in Tips is worth reading.",
       },
       flavorPrompt: "You are Lienka, a tiny ladybug guardian of a baby. Rephrase one short remark for tired parents, entirely in {langName}. Keep the meaning and every single number exactly as given — no new facts, no extra advice, one sentence, no bullet points.",
       tap_hint: "Tap her and Lienka tells you more",
       sheet_title: "What Lienka says",
       g_celebrate: "Celebrations", g_notes: "Little observations", g_watch: "Flagged for you (sourced)",
+      g_feels: "Why she looks like this", intake_note: "today {ml} ml vs reference ~{lo}–{hi} ml/day (measured intakes only)",
       sheet_empty: "Nothing out of the ordinary today — just a quiet little tail and a content ladybug.",
       src_note: "Sources:", open_tips: "Open Tips",
       ai_flavor: "Assistant flavor (BYO-LLM) — numbers and meaning stay from your records.",
@@ -640,6 +648,7 @@ let petData = null;  // optional "Lienka buddy" state (v1.25), derived server-si
 let noticeSnapshot = { signals: [], rows: [] };  // latest visible signals from the notices card, shared with the pet sheet
 let petSay = [];  // current murmurs rendered into the speech bubble
 let petIdx = 0;
+let petBugArgs = null;  // last spots/mood the bug was drawn with, so paintPetLife can redraw faces
 const TASK_ICONS = ["bell", "pill", "calendar", "heart", "sun", "moon", "star", "walk", "bath", "bottle", "scale", "note", "clock", "home", "check"];
 const TASK_COLORS = ["#2f8f78", "#d9822b", "#5b8def", "#b56576", "#8b5cf6", "#d64545", "#6b7280"];
 let remindedAt = 0;
@@ -1490,7 +1499,7 @@ function importantNoticesCard() {
     items = analyzeSignals(rows, ctx.completed, ctx.ageDays, ctx.nowStamp).concat(thresholdSignals(rows, ctx));
     noticeSnapshot = { signals: visibleSignals(items), rows };
     paint();
-    paintPetBubble();  // her watch-pointer murmur depends on what we just found
+    paintPetLife();  // her face and pointers follow whatever we just found
   })().catch(() => {});
   return card;
 }
@@ -1524,7 +1533,7 @@ function renderToday() {
     ...(petMode() && petData && petData.exists ? [petCard()] : []),
     importantNoticesCard(), remindersCard(), quick, right);
   if (petMode()) requestAnimationFrame(() => {
-    paintPetBubble();
+    paintPetLife();
     // grow the energy bar in from zero on mount (CSS transition does the easing)
     document.querySelectorAll("#view-today .petmeter i[data-w]").forEach((el) => { el.style.width = el.dataset.w; });
   });
@@ -1867,26 +1876,74 @@ const PET_SPOTS_L = [[16.5, 20], [12.5, 29], [18, 38]];
 const PET_SPOTS_R = [[31.5, 20], [35.5, 29], [30, 38]];
 const spotDot = ([x, y]) => `<circle class="pet-spot" cx="${x}" cy="${y}" r="3.3"/>`;
 
-function ladybugSvg(spots, mood) {
+// Which registered signals set her expression — every trigger is an existing sourced Tips
+// signal; she mirrors what Tips already says, she never judges on her own. Priority: the
+// most urgent reading wins (unwell > hungry > stuffed), calm when nothing adverse is flagged.
+const PET_LOOKS = ["calm", "unwell", "hungry", "stuffed"];
+const PET_LOOK_SIGS = {
+  unwell: ["sigTempHighTitle", "sigTempLowTitle"],                                        // S116/S117
+  hungry: ["sigWetLowTitle", "sigWeightLowTitle", "sigWeightWatchTitle"],                 // S31/S29, S44
+  stuffed: ["sigMlHighTitle", "sigWeightJumpTitle"],                                       // S125/S124, S44
+};
+let petLifeNow = { look: "calm", belly: 1, ref: null, todayMl: 0 };
+
+function petLife() {
+  let look = "calm";
+  const sigs = noticeSnapshot.signals;
+  for (const name of ["unwell", "hungry", "stuffed"]) {
+    if (sigs.some((s) => PET_LOOK_SIGS[name].includes(s.key))) { look = name; break; }
+  }
+  // belly roundness mirrors today's measured intake against the same S119-S121 daily band the
+  // Intake chart draws — but only when ml is actually being measured (never punish nursing).
+  let belly = 1, ref = null;
+  const age = meta ? Number(meta.age_days) : NaN;
+  if (summary && Number.isFinite(age)) {
+    const w = ((summary.weights) || []).filter((x) => Number.isFinite(x.value));
+    const r = milkRef(Math.max(0, age), w.length ? w[w.length - 1].value : null);
+    if (r && r.f > 0 && r.perLo > 0) ref = { lo: Math.round(r.perLo * r.f), hi: Math.round(r.perHi * r.f) };
+    const days = summary.days || [];
+    const measured = days.slice(-3).reduce((a, d) => a + (Number(d.feed_ml) || 0), 0);
+    const todayMl = Number(summary.today && summary.today.feed_ml) || 0;
+    if (ref && measured > 0) {
+      belly = Math.max(0.8, Math.min(1.22, Math.pow(Math.max(todayMl, 1) / ((ref.lo + ref.hi) / 2), 0.35)));
+    }
+  }
+  const todayMl = Number(summary && summary.today && summary.today.feed_ml) || 0;
+  petLifeNow = { look, belly: Number(belly.toFixed(2)), ref, todayMl };
+  return petLifeNow;
+}
+
+function ladybugSvg(spots, mood, look) {
   const n = Math.max(0, Math.min(7, Number(spots) || 0));
   const dotsL = PET_SPOTS_L.filter((_, i) => i * 2 < n).map(spotDot).join("");
   const dotsR = PET_SPOTS_R.filter((_, i) => i * 2 + 1 < n).map(spotDot).join("");
   const scutum = n === 7 ? '<circle class="pet-spot" cx="24" cy="16" r="3.6"/>' : "";
+  // Awake faces speak reference language: hungry = fussy w-mouth + worried brows, stuffed =
+  // milk-drunk smile with heavy lids and a burp bubble, unwell = weak flat wave + sweat bead.
+  const faces = {
+    hungry: '<path class="pet-face" d="M21.6 12.2c.5-.8 1.2-.8 1.7 0 .5.8 1.3.8 1.8 0"/>' +
+      '<path class="pet-face" d="M19.9 6.7l2.3 1M28.1 6.7l-2.3 1"/>',
+    stuffed: '<path class="pet-face" d="M21.6 11.4q2.4 1.9 4.8 0"/>' +
+      '<path class="pet-lid" d="M20.2 8.3h2.6M25.2 8.3h2.6"/><circle class="pet-burp" cx="31.8" cy="12.8" r="1.5"/>',
+    unwell: '<path class="pet-face" d="M21.9 12.2q1-.7 2.1 0t2.1 0"/>' +
+      '<path class="pet-sweat" d="M33.4 10.4c1.5 1.9 2.3 3 2.3 3.9a2.3 2.3 0 0 1-4.6 0c0-.9.8-2 2.3-3.9z"/>',
+  };
   const sleepy = mood === "sleepy" || mood === "asleep";
   const face = sleepy
     ? '<path class="pet-closed" d="M20.2 9.6c.7.9 1.9.9 2.6 0M25.2 9.6c.7.9 1.9.9 2.6 0"/>'
-    : '<circle class="pet-eye" cx="21.5" cy="9.4" r="1.05"/><circle class="pet-eye" cx="26.5" cy="9.4" r="1.05"/>';
+    : '<circle class="pet-eye" cx="21.5" cy="9.4" r="1.05"/><circle class="pet-eye" cx="26.5" cy="9.4" r="1.05"/>' + (faces[look] || "");
   const zzz = mood === "asleep" ? '<text class="pet-z z1" x="39" y="9">z</text><text class="pet-z z2" x="43" y="5">z</text>' : "";
-  const sparks = mood === "radiant"
+  const sparks = mood === "radiant" && look !== "unwell"
     ? '<g class="pet-spark s1"><path d="M6 12l1 2.6 2.6 1-2.6 1L6 19.2 5 16.6 2.4 15.6 5 14.6z"/></g>' +
       '<g class="pet-spark s2"><path d="M43.5 20l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></g>'
     : "";
   // Wings are two half-shells in groups, so they can flutter open around the head (CSS) with
   // their spots riding along; the dark under-shell only peeks through the seam when they do.
+  // .pet-belly carries --belly (CSSOM, CSP-safe): >1 squash-stuffs her round, <1 draws her slim.
   return `<svg viewBox="0 0 48 48" class="ladybug" aria-hidden="true">` +
     `<circle class="pet-glow" cx="24" cy="26" r="17.5"/>` +
     `<ellipse class="pet-shadow" cx="24" cy="45.8" rx="10.5" ry="1.9"/>` +
-    `<g class="pet-all">` +
+    `<g class="pet-all"><g class="pet-belly">` +
     `<g class="pet-a pet-a-l"><path class="pet-line" d="M20.5 6.5C18.5 3.8 16 2.6 13.8 2.2"/><circle class="pet-head" cx="13.4" cy="2.4" r="1.3"/></g>` +
     `<g class="pet-a pet-a-r"><path class="pet-line" d="M27.5 6.5c2-2.7 4.5-3.9 6.7-4.3"/><circle class="pet-head" cx="34.6" cy="2.2" r="1.3"/></g>` +
     `<ellipse class="pet-under" cx="24" cy="28" rx="13.4" ry="14.2"/>` +
@@ -1894,7 +1951,7 @@ function ladybugSvg(spots, mood) {
     `<g class="pet-w pet-w-r"><path class="pet-shell" d="M24 13c8.5 1 14.5 7 14.5 15 0 8.3-5.5 15-13.3 15H24z"/>${dotsR}</g>` +
     scutum +
     `<circle class="pet-head" cx="24" cy="9" r="6"/>${face}` +
-    `</g>${zzz}${sparks}</svg>`;
+    `</g></g>${zzz}${sparks}</svg>`;
 }
 
 function petCard() {
@@ -1902,10 +1959,12 @@ function petCard() {
   const mood = PET_MOODS.includes(p.mood) ? p.mood : "content";
   const energy = Math.max(0, Math.min(100, Number(p.energy) || 0));
   const spots = Math.max(0, Math.min(7, Number(p.spots) || 0));
+  const life = petLife();
+  petBugArgs = { spots, mood };
   const hop = sessionStorage.getItem("baby.petHop") === "1";
   if (hop) sessionStorage.removeItem("baby.petHop");
-  return h("section", { class: `card pet-card full mood-${mood}${hop ? " pet-hop" : ""}` },
-    h("span", { class: "pet-bug", html: ladybugSvg(spots, mood) }),
+  return h("section", { class: `card pet-card full mood-${mood} look-${life.look}${hop ? " pet-hop" : ""}` },
+    h("span", { class: "pet-bug", html: ladybugSvg(spots, mood, life.look) }),
     h("div", { class: "pet-bubbleholder hidden" }),
     h("div", { class: "pet-text" },
       h("b", {}, `${t("pet.title")} · ${t(`pet.mood_${mood}`)}`),
@@ -1927,7 +1986,12 @@ function fmtMurmur(m) {
 
 function petMurmurs() {
   const list = [];
-  if (noticeSnapshot.signals.some((s) => s.sev !== "info")) list.push({ tone: "watch", text: t("pet.say.tips_wait") });
+  if (noticeSnapshot.signals.some((s) => s.sev !== "info")) {
+    // when the signals are what paint her face, she explains her face; otherwise a gentle pointer
+    list.push(petLifeNow.look !== "calm"
+      ? { tone: petLifeNow.look === "stuffed" ? "note" : "watch", lookLine: true, text: t(`pet.say.look_${petLifeNow.look}`) }
+      : { tone: "watch", text: t("pet.say.tips_wait") });
+  }
   for (const m of (petData && petData.murmurs) || []) {
     const line = fmtMurmur(m);
     if (!line.startsWith("pet.")) list.push({ tone: m.tone, code: m.code, params: m.params || {}, text: line });
@@ -1985,6 +2049,20 @@ async function polishMurmur(m, btn) {
   }
 }
 
+// face + body shape follow the sourced signals; run after every signal refresh
+function paintPetLife() {
+  const card = document.querySelector("#view-today .pet-card");
+  if (!card) return;
+  const life = petLife();
+  const bug = card.querySelector(".pet-bug");
+  const staleFace = Boolean(bug && petBugArgs && !card.classList.contains("look-" + life.look));
+  for (const name of PET_LOOKS) card.classList.toggle("look-" + name, name === life.look);
+  if (staleFace) bug.innerHTML = ladybugSvg(petBugArgs.spots, petBugArgs.mood, life.look);
+  const svg = bug && bug.querySelector("svg");
+  if (svg) svg.style.setProperty("--belly", String(life.belly));  // CSSOM keeps CSP happy
+  paintPetBubble();
+}
+
 function paintPetBubble() {
   const holder = document.querySelector("#view-today .pet-bubbleholder");
   if (!holder) return;
@@ -2009,14 +2087,22 @@ function openPetSheet() {
   $("listClose").innerHTML = icon("x", "sm");
   const body = $("listBody");
   body.innerHTML = "";
+  const life = petLife();
   const list = petMurmurs();
   const rank = { bad: 0, warn: 1 };
   const watch = noticeSnapshot.signals.filter((s) => s.sev !== "info").sort((a, b) => rank[a.sev] - rank[b.sev]).slice(0, 6);
   if (!list.length && !watch.length) {
     body.append(h("p", { class: "muted" }, t("pet.sheet_empty")));
   } else {
+    if (life.look !== "calm") {
+      body.append(h("div", { class: "cardhead" }, h("h2", {}, t("pet.g_feels"))));
+      body.append(h("div", { class: "petsay tone-" + (life.look === "stuffed" ? "note" : "watch") }, h("span", {}, t(`pet.say.look_${life.look}`))));
+      if (life.ref && life.todayMl > 0) body.append(h("p", { class: "petsrc" },
+        h("span", { class: "muted" }, t("pet.intake_note", { ml: fmtNum(life.todayMl), lo: fmtNum(life.ref.lo), hi: fmtNum(life.ref.hi) })),
+        srcTag(pickSrc(SRC_FOR.intake), "")));
+    }
     for (const [tone, label] of [["cheer", t("pet.g_celebrate")], ["note", t("pet.g_notes")]]) {
-      const rows = list.filter((x) => x.tone === tone || (tone === "note" && x.tone === "gentle"));
+      const rows = list.filter((x) => !x.lookLine && (x.tone === tone || (tone === "note" && x.tone === "gentle")));
       if (!rows.length) continue;
       body.append(h("div", { class: "cardhead" }, h("h2", {}, label)));
       for (const m of rows) body.append(h("div", { class: `petsay tone-${m.tone}` },
@@ -2951,6 +3037,7 @@ const SRC_FOR = {
   wet: ["S31", "S29"],
   stool: ["S31", "S29"],
   fever: ["S116", "S117"],
+  intake: ["S125", "S124"],
 };
 
 // Which registered sources back each threshold signal Lienka may voice in her detail sheet.
@@ -2962,6 +3049,8 @@ const SIG_SRC = {
   sigFeedGapTitle: SRC_FOR.feedGap,
   sigWeightLowTitle: SRC_FOR.weightVel,
   sigWeightWatchTitle: SRC_FOR.weightVel,
+  sigWeightJumpTitle: SRC_FOR.weightVel,
+  sigMlHighTitle: SRC_FOR.intake,
   sigTempHighTitle: SRC_FOR.fever,
   sigTempLowTitle: SRC_FOR.fever,
   sigStoolColourTitle: ["S122", "S123"],
