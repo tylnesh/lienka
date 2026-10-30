@@ -1534,6 +1534,7 @@ function renderToday() {
     importantNoticesCard(), remindersCard(), quick, right);
   if (petMode()) requestAnimationFrame(() => {
     paintPetLife();
+    petStartActs();
     // grow the energy bar in from zero on mount (CSS transition does the easing)
     document.querySelectorAll("#view-today .petmeter i[data-w]").forEach((el) => { el.style.width = el.dataset.w; });
   });
@@ -1929,9 +1930,16 @@ function ladybugSvg(spots, mood, look) {
       '<path class="pet-sweat" d="M33.4 10.4c1.5 1.9 2.3 3 2.3 3.9a2.3 2.3 0 0 1-4.6 0c0-.9.8-2 2.3-3.9z"/>',
   };
   const sleepy = mood === "sleepy" || mood === "asleep";
-  const face = sleepy
+  // calm faces scale with mood, so even a signal-free day has a look: radiant beams with
+  // closed happy arcs + a big grin, happy smiles gently, content stays the neutral dot-eyes
+  const dotEyes = '<circle class="pet-eye" cx="21.5" cy="9.4" r="1.05"/><circle class="pet-eye" cx="26.5" cy="9.4" r="1.05"/>';
+  const calmFace = look === "calm" && mood === "radiant"
+    ? '<path class="pet-eye-arc" d="M20.3 9.8c.6-1.1 1.8-1.1 2.4 0"/><path class="pet-eye-arc" d="M25.3 9.8c.6-1.1 1.8-1.1 2.4 0"/>' +
+      '<path class="pet-face" d="M21.4 11.1q2.6 2.3 5.2 0"/>'
+    : look === "calm" && mood === "happy" ? dotEyes + '<path class="pet-face" d="M22.1 11.4q1.9 1.5 3.8 0"/>' : "";
+  const face = `<g class="pet-eyes">${sleepy
     ? '<path class="pet-closed" d="M20.2 9.6c.7.9 1.9.9 2.6 0M25.2 9.6c.7.9 1.9.9 2.6 0"/>'
-    : '<circle class="pet-eye" cx="21.5" cy="9.4" r="1.05"/><circle class="pet-eye" cx="26.5" cy="9.4" r="1.05"/>' + (faces[look] || "");
+    : calmFace || dotEyes + (faces[look] || "")}</g>`;
   const zzz = mood === "asleep" ? '<text class="pet-z z1" x="39" y="9">z</text><text class="pet-z z2" x="43" y="5">z</text>' : "";
   const sparks = mood === "radiant" && look !== "unwell"
     ? '<g class="pet-spark s1"><path d="M6 12l1 2.6 2.6 1-2.6 1L6 19.2 5 16.6 2.4 15.6 5 14.6z"/></g>' +
@@ -1943,7 +1951,7 @@ function ladybugSvg(spots, mood, look) {
   return `<svg viewBox="0 0 48 48" class="ladybug" aria-hidden="true">` +
     `<circle class="pet-glow" cx="24" cy="26" r="17.5"/>` +
     `<ellipse class="pet-shadow" cx="24" cy="45.8" rx="10.5" ry="1.9"/>` +
-    `<g class="pet-all"><g class="pet-belly">` +
+    `<g class="pet-all"><g class="pet-act"><g class="pet-belly">` +
     `<g class="pet-a pet-a-l"><path class="pet-line" d="M20.5 6.5C18.5 3.8 16 2.6 13.8 2.2"/><circle class="pet-head" cx="13.4" cy="2.4" r="1.3"/></g>` +
     `<g class="pet-a pet-a-r"><path class="pet-line" d="M27.5 6.5c2-2.7 4.5-3.9 6.7-4.3"/><circle class="pet-head" cx="34.6" cy="2.2" r="1.3"/></g>` +
     `<ellipse class="pet-under" cx="24" cy="28" rx="13.4" ry="14.2"/>` +
@@ -1951,7 +1959,7 @@ function ladybugSvg(spots, mood, look) {
     `<g class="pet-w pet-w-r"><path class="pet-shell" d="M24 13c8.5 1 14.5 7 14.5 15 0 8.3-5.5 15-13.3 15H24z"/>${dotsR}</g>` +
     scutum +
     `<circle class="pet-head" cx="24" cy="9" r="6"/>${face}` +
-    `</g></g>${zzz}${sparks}</svg>`;
+    `</g></g></g>${zzz}${sparks}</svg>`;
 }
 
 function petCard() {
@@ -1964,7 +1972,14 @@ function petCard() {
   const hop = sessionStorage.getItem("baby.petHop") === "1";
   if (hop) sessionStorage.removeItem("baby.petHop");
   return h("section", { class: `card pet-card full mood-${mood} look-${life.look}${hop ? " pet-hop" : ""}` },
-    h("span", { class: "pet-bug", html: ladybugSvg(spots, mood, life.look) }),
+    h("span", {
+      class: "pet-bug", html: ladybugSvg(spots, mood, life.look), title: t("pet.tap_hint"),
+      onclick: () => {  // boop: she wiggles and offers her next thought
+        petIdx = petSay.length ? (petIdx + 1) % petSay.length : 0;
+        paintPetBubble();
+        petDoAct("pet-act-boop", 800);
+      },
+    }),
     h("div", { class: "pet-bubbleholder hidden" }),
     h("div", { class: "pet-text" },
       h("b", {}, `${t("pet.title")} · ${t(`pet.mood_${mood}`)}`),
@@ -2061,6 +2076,42 @@ function paintPetLife() {
   const svg = bug && bug.querySelector("svg");
   if (svg) svg.style.setProperty("--belly", String(life.belly));  // CSSOM keeps CSP happy
   paintPetBubble();
+}
+
+// --- idle personality: short one-shot bursts chosen from her current mood + look, so even
+// on a quiet day she glances around, grooms an antenna or stretches. Never while hopping,
+// never bouncy when unwell (she just rests), dreaming REM-glances only when asleep. -------
+let petActTimer = null;
+function petDoAct(cls, ms) {
+  const card = document.querySelector("#view-today .pet-card");
+  if (!card || card.dataset.act) return false;
+  card.dataset.act = cls;
+  card.classList.add(cls);
+  setTimeout(() => { card.classList.remove(cls); delete card.dataset.act; }, (Number(ms) || 1000) + 150);
+  return true;
+}
+function petPickAct(card) {
+  if (card.classList.contains("pet-hop") || card.classList.contains("look-unwell")) return null;
+  const gazeL = ["pet-act-gaze-l", 850], gazeR = ["pet-act-gaze-r", 850];
+  let pool;
+  if (card.classList.contains("mood-asleep")) pool = [gazeL, gazeL, gazeR, gazeR];  // dreaming
+  else if (card.classList.contains("look-stuffed")) pool = [["pet-act-burp", 1200], ["pet-act-groom", 1000], gazeL, gazeR, ["pet-act-flutter", 950]];
+  else if (card.classList.contains("look-hungry")) pool = [["pet-act-pop", 850], ["pet-act-wiggle", 1150], gazeL, gazeR];
+  else if (card.classList.contains("mood-sleepy")) pool = [["pet-act-stretch", 1350], ["pet-act-stretch", 1350], gazeL, gazeR];
+  else if (card.classList.contains("mood-radiant")) pool = [["pet-act-pop", 850], ["pet-act-pop", 850], ["pet-act-wiggle", 1150], ["pet-act-flutter", 950], ["pet-act-groom", 1000]];
+  else pool = [["pet-act-wiggle", 1150], ["pet-act-groom", 1000], ["pet-act-flutter", 950], ["pet-act-pop", 850], gazeL, gazeR];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function petStartActs() {
+  if (petActTimer) return;
+  petActTimer = setTimeout(function tick() {
+    petActTimer = setTimeout(tick, 9000 + Math.random() * 13000);
+    const card = document.querySelector("#view-today .pet-card");
+    if (!card || !document.body.contains(card) || !petMode()) return;
+    if (document.body.dataset.anim !== "on" || document.hidden) return;  // settings + tab respect
+    const act = petPickAct(card);
+    if (act) petDoAct(act[0], act[1]);
+  }, 6000 + Math.random() * 8000);
 }
 
 function paintPetBubble() {
