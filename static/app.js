@@ -109,7 +109,7 @@ const I18N = {
     summaryTitle: "Dnes", entriesTitle: "Záznamy", statsTitle: "Grafy", insightsTitle: "Tipy a trendy", tableTitle: "Denný prehľad",
     stat: { nappies: "Plienky", feeds: "Kŕmenia", sleep: "Spánok", care: "Starostlivosť", weight: "Hmotnosť", notes: "Poznámky", ml: "Odstriekané", pumping: "Odsávanie", bank: "Zásoba" },
     table: { date: "Deň", wet: "Mokré", dirty: "Stolice", feeds: "Kŕmenia", pumping: "Odsávané", sleep: "Spánok (h)", weight: "Hmotnosť" },
-    chart: { output: "Plienky", feeds: "Kŕmenia", intake: "Príjem", intakeRef: "referencia {lo}–{hi} ml/deň", pumps: "Odsávanie", sleep: "Spánok", weight: "Hmotnosť", length: "Dĺžka", care: "Starostlivosť" },
+    chart: { output: "Plienky", feeds: "Kŕmenia", intake: "Príjem", intakeRef: "referencia {lo}–{hi} ml/deň", intakeRefKg: "podľa váhy {lo}–{hi} ml/deň", pumps: "Odsávanie", sleep: "Spánok", weight: "Hmotnosť", length: "Dĺžka", care: "Starostlivosť" },
     noData: "Zatiaľ málo údajov.", empty: "Zatiaľ žiadne záznamy.", loadMore: "Načítať staršie",
     offline: "Uložené offline – skúsime znova, keď bude sieť.",
     ageOne: "deň", ageFew: "dni", ageMany: "dní", ageLabel: "Vek",
@@ -393,7 +393,7 @@ const I18N = {
     summaryTitle: "Today", entriesTitle: "Entries", statsTitle: "Charts", insightsTitle: "Tips & trends", tableTitle: "Daily summary",
     stat: { nappies: "Nappies", feeds: "Feeds", sleep: "Sleep", care: "Care", weight: "Weight", notes: "Notes", ml: "Expressed", pumping: "Pumping", bank: "Bank" },
     table: { date: "Day", wet: "Wet", dirty: "Dirty", feeds: "Feeds", pumping: "Expressed", sleep: "Sleep (h)", weight: "Weight" },
-    chart: { output: "Output", feeds: "Feeds", intake: "Intake", intakeRef: "reference {lo}–{hi} ml/day", pumps: "Pumping", sleep: "Sleep", weight: "Weight", length: "Length", care: "Care" },
+    chart: { output: "Output", feeds: "Feeds", intake: "Intake", intakeRef: "reference {lo}–{hi} ml/day", intakeRefKg: "weight-based {lo}–{hi} ml/day", pumps: "Pumping", sleep: "Sleep", weight: "Weight", length: "Length", care: "Care" },
     noData: "Not enough data yet.", empty: "No entries yet.", loadMore: "Load older",
     offline: "Saved offline – we will retry when the network is back.",
     ageOne: "day", ageFew: "days", ageMany: "days", ageLabel: "Age",
@@ -625,7 +625,7 @@ const TIMER_KINDS = ["feed", "sleep", "pump", "walk", "bath", "activity"];
 const SELECT_DICT = { diaper_type: "diaper_types", diaper_colour: "diaper_colours", feed_method: "feed_methods", pump_side: "pump_sides", pump_storage: "pump_storages", measure_kind: "measure_kinds" };
 const VIEWS = ["today", "log", "stats", "kontrola", "insights", "doctor"];
 const VIEW_ICONS = { today: "home", log: "list", stats: "chart", kontrola: "bell", insights: "bulb", doctor: "heart" };
-const CHART_TABS = ["output", "feeds", "intake", "pumps", "sleep", "weight", "length", "care"];
+const CHART_TABS = ["intake", "output", "feeds", "pumps", "sleep", "weight", "length", "care"];
 
 let lang = localStorage.getItem("baby.lang") || (navigator.language.startsWith("sk") ? "sk" : "en");
 let user = localStorage.getItem("baby.user") || "";  // resolved to the server's first USERS id in loadMeta()
@@ -638,7 +638,8 @@ let jumpDay = null;
 let filterKind = localStorage.getItem("baby.fkind") || "";
 let filterUser = "";
 let statsDays = Number(localStorage.getItem("baby.statsdays")) || 7;
-let chartTab = CHART_TABS.includes(localStorage.getItem("baby.chart")) ? localStorage.getItem("baby.chart") : "output";
+// "" until the first summary tells us whether ml is being logged at all (see loadSummary)
+let chartTab = CHART_TABS.includes(localStorage.getItem("baby.chart")) ? localStorage.getItem("baby.chart") : "";
 let timerStarting = false;
 let liveInterval = null;
 let lastFeedAt = null;
@@ -850,7 +851,12 @@ async function loadMeta() {
 }
 let llmCfg = null;
 async function loadLlm() { try { const d = await api(API.llm); if (d && d.llm) llmCfg = d.llm; } catch { /* LLM endpoint missing on older servers */ } }
-async function loadSummary() { summary = await api(`${API.summary}?days=${Math.max(7, statsDays)}`); }
+async function loadSummary() {
+  summary = await api(`${API.summary}?days=${Math.max(7, statsDays)}`);
+  // first-run default chart: milk intake when ml is being logged at all, otherwise nappies;
+  // the choice is not persisted, so a manual pick from then on always wins
+  if (!chartTab) chartTab = ((summary && summary.days) || []).some((d) => Number(d.feed_ml) > 0) ? "intake" : "output";
+}
 
 async function loadEntries({ from, kind, user: who, limit = LOG_PAGE, offset = 0 } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
@@ -2304,6 +2310,14 @@ function renderStats() {
   root.append(chartCard, tableCard);
   drawChart();
   drawTable();
+  // the intake reference band needs more weight history than the summary window carries —
+  // fetch it on the side and redraw once it lands (loadIntakeWeights caches for a minute)
+  if (chartTab === "intake") {
+    const before = intakeWeights;
+    loadIntakeWeights().then((pts) => {
+      if (pts !== before && chartTab === "intake" && $("chartArea")) drawChart();
+    });
+  }
 }
 
 const CW = 720, CH = 300, CM = 18, CTOP = 32, CBASE = 244, CPLOT = CBASE - CTOP, CLAB = 266;
@@ -2410,29 +2424,34 @@ function drawChart() {
   } else if (chartTab === "intake") {
     const values = days.map((d) => Number(d.feed_ml) || 0); // feeds incl. fed_ml from pumping sessions
     if (!values.some((v) => v)) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
-    // typical daily range for age/weight (S119–S121), same rule as the milk hint in the feed dialog
-    let ref = null;
-    if (meta && meta.birth_date) {
-      const ageDays = ageAtDate(meta.birth_date, days[days.length - 1].date);
-      const wEntry = [...days].reverse().find((d) => Number(d.weight_g) > 500);
-      const r = milkRef(ageDays, wEntry ? Number(wEntry.weight_g) : null);
-      if (r && r.f > 0 && r.perLo > 0) ref = { lo: Math.round(r.perLo * r.f), hi: Math.round(r.perHi * r.f) };
-    }
-    const max = niceMax(Math.max(...values, ref ? ref.hi : 0));
+    // Recommended daily range recomputed for every plotted day: age brackets (S119–S121) or,
+    // where a weigh-in exists around that day, 150–180 ml/kg/day on the interpolated weight —
+    // so the zone climbs with the baby across the window instead of freezing at one flat guess.
+    const birth = meta && meta.birth_date ? String(meta.birth_date).slice(0, 10) : null;
+    const bands = birth ? days.map((d) => dailyMilkBand(birth, d.date)) : [];
+    const zone = bands.map((b, i) => (b ? { i, lo: b.lo, hi: b.hi } : null)).filter(Boolean);
+    const max = niceMax(Math.max(...values, ...zone.map((b) => b.hi)));
     body = gridLines(max);
-    if (ref) {
-      const ylo = CBASE - (ref.lo / max) * CPLOT;
-      const yhi = CBASE - (ref.hi / max) * CPLOT;
-      body += `<rect x="${CM}" y="${yhi.toFixed(1)}" width="${CW - 2 * CM}" height="${Math.max(0, ylo - yhi).toFixed(1)}" rx="4" fill="var(--accent)" opacity=".07"/>`;
-      body += `<line class="refline" x1="${CM}" y1="${yhi.toFixed(1)}" x2="${CW - CM}" y2="${yhi.toFixed(1)}"/>`;
-      body += `<line class="refline" x1="${CM}" y1="${ylo.toFixed(1)}" x2="${CW - CM}" y2="${ylo.toFixed(1)}"/>`;
+    const group = (CW - 2 * CM) / Math.max(days.length, 1);
+    const px = (i) => CM + (i + 0.5) * group;
+    if (zone.length > 1) {
+      const hiPts = zone.map((b) => `${px(b.i).toFixed(1)},${(CBASE - (b.hi / max) * CPLOT).toFixed(1)}`);
+      const loPts = zone.map((b) => `${px(b.i).toFixed(1)},${(CBASE - (b.lo / max) * CPLOT).toFixed(1)}`);
+      body += `<polygon class="band milk" points="${[...hiPts, ...loPts.slice().reverse()].join(" ")}"/>`;
+      body += `<polyline class="refline" points="${hiPts.join(" ")}"/>`;
+      body += `<polyline class="refline" points="${loPts.join(" ")}"/>`;
+    } else if (zone.length === 1) {
+      // single computable day in the window — draw a stub segment instead of nothing
+      const b = zone[0];
+      const y = CBASE - (b.hi / max) * CPLOT;
+      body += `<rect class="band milk" rx="4" x="${(px(b.i) - group * 0.45).toFixed(1)}" y="${y.toFixed(1)}" width="${(group * 0.9).toFixed(1)}" height="${Math.max(2, ((b.hi - b.lo) / max) * CPLOT).toFixed(1)}"/>`;
     }
     days.forEach((day, index) => {
       const pos = barPos(index, days.length);
       if (values[index] > 0) {
         const height = Math.max(2, (values[index] / max) * CPLOT);
         const y = CBASE - height;
-        body += `<rect class="bar feed" rx="3" x="${pos.x.toFixed(1)}" y="${y.toFixed(1)}" width="${pos.width.toFixed(1)}" height="${height.toFixed(1)}"/>`;
+        body += `<rect class="bar ml" rx="3" x="${pos.x.toFixed(1)}" y="${y.toFixed(1)}" width="${pos.width.toFixed(1)}" height="${height.toFixed(1)}"/>`;
         body += `<text class="count" x="${(pos.x + pos.width / 2).toFixed(1)}" y="${Math.max(CTOP - 8, y - 6).toFixed(1)}" text-anchor="middle">${values[index]}</text>`;
       }
     });
@@ -2444,7 +2463,6 @@ function drawChart() {
       });
       const pts = ma.map((v, i) => ({ i, v })).filter((p) => p.v !== null && p.v > 0);
       if (pts.length > 1) {
-        const group = (CW - 2 * CM) / Math.max(days.length, 1);
         const line = pts.map((p) => `${(CM + (p.i + 0.5) * group).toFixed(1)},${(CBASE - (p.v / max) * CPLOT).toFixed(1)}`).join(" ");
         body += `<polyline class="line" points="${line}"/>`;
       }
@@ -2452,8 +2470,9 @@ function drawChart() {
     body += dayLabels(days);
     const activeDays = values.filter((v) => v).length;
     const avg = activeDays ? Math.round(total((d) => d.feed_ml) / activeDays) : 0;
+    const ref = bands.length ? bands[bands.length - 1] : null;
     foot = `<p class="legend"><span><span class="dot feed"></span>${t("chart.intake")} ${Math.round(total((d) => d.feed_ml))} ml</span><span>Ø ${avg} ml/${t("day").toLowerCase()}</span>` +
-      (ref ? `<span>${t("chart.intakeRef", { lo: ref.lo, hi: ref.hi })}</span>` : "") + `</p>`;
+      (ref ? `<span>${t(ref.basis === "weight" ? "chart.intakeRefKg" : "chart.intakeRef", { lo: Math.round(ref.lo / 5) * 5, hi: Math.round(ref.hi / 5) * 5 })}</span>` : "") + `</p>`;
   } else if (chartTab === "pumps") {
     const values = days.map((d) => Number(d.pump_ml) || 0);
     if (!values.some((v) => v)) { area.innerHTML = `<p class="muted">${t("noData")}</p>`; return; }
@@ -3215,6 +3234,63 @@ function milkRef(ageDays, weightG) {
     return { perLo: Math.max(10, Math.round(dayLo / f / 5) * 5), perHi: Math.round(dayHi / f / 5) * 5, dayLo, dayHi, f, weightG, basis: "weight" };
   }
   return { perLo: b[1], perHi: b[2], f, basis: "age" };
+}
+
+/* ---------- weight history behind the Intake chart's reference band ----------
+   Weigh-ins live in two places: dedicated measure(weight_g) entries and scale_after_g
+   readings on feed entries from before/after weighing (both are real weights — same rule
+   as fillMilkHint). Loaded lazily when the Intake tab renders; latest reading per day. */
+let intakeWeights = null; // [{date, g}] sorted asc; null until the first load lands
+let intakeWeightsFetched = 0;
+
+function loadIntakeWeights() {
+  if (Date.now() - intakeWeightsFetched < 6e4) return Promise.resolve(intakeWeights);
+  intakeWeightsFetched = Date.now();
+  return Promise.all([
+    loadEntries({ kind: "measure", limit: 500 }).catch(() => []),
+    loadEntries({ kind: "feed", limit: 500 }).catch(() => []),
+  ]).then(([measures, feeds]) => {
+    const byDay = new Map(); // the latest reading of a day is when baby last "was" that weight
+    const add = (at, g) => {
+      if (!at || !Number.isFinite(g) || g < 1500 || g > 15000) return;
+      const date = String(at).slice(0, 10);
+      const prev = byDay.get(date);
+      if (!prev || String(at) > prev.at) byDay.set(date, { at: String(at), g });
+    };
+    for (const r of measures) if (r.measure_kind === "weight_g") add(r.at, Number(r.value));
+    for (const r of feeds) add(r.at, Number(r.scale_after_g ?? r.scale_before_g));
+    intakeWeights = [...byDay.entries()]
+      .map(([date, p]) => ({ date, g: p.g }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return intakeWeights;
+  }).catch(() => intakeWeights);
+}
+
+/* Weight estimate for a chart day: linear interpolation between weigh-ins. Before the first
+   weigh-in there is no answer — an age bracket knows newborn sizes better than a future weight
+   would. After the last weigh-in the value carries on for up to a month, then we fall back to
+   the age brackets so the band keeps tracking growth instead of sticking to a stale weighing. */
+function weightOnDay(date) {
+  const pts = intakeWeights;
+  if (!pts || !pts.length) return null;
+  if (date <= pts[0].date) return date === pts[0].date ? pts[0].g : null;
+  const diff = (a, b) => Math.round((Date.parse(b + "T12:00") - Date.parse(a + "T12:00")) / 864e5);
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].date >= date) {
+      const a = pts[i - 1], b = pts[i];
+      if (b.date === date) return b.g;
+      return Math.round(a.g + ((b.g - a.g) * diff(a.date, date)) / Math.max(1, diff(a.date, b.date)));
+    }
+  }
+  return diff(pts[pts.length - 1].date, date) <= 28 ? pts[pts.length - 1].g : null;
+}
+
+function dailyMilkBand(birthDate, date) {
+  const r = milkRef(ageAtDate(birthDate, date), weightOnDay(date));
+  if (!r || !(r.f > 0) || !(r.perLo > 0)) return null;
+  return r.basis === "weight"
+    ? { lo: r.dayLo, hi: r.dayHi, basis: "weight" }
+    : { lo: r.perLo * r.f, hi: r.perHi * r.f, basis: "age" };
 }
 function fillMilkHint(row, entry, atPreset) {
   const hint = h("small", { class: "hint" });

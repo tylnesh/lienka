@@ -3,7 +3,7 @@
 
 /* babylog service worker — network first (live data, fresh code), cache only as a fallback
    for the shell when the network is down. Served by the app at /sw.js so it can own "/". */
-const VERSION = "babylog-v57";
+const VERSION = "babylog-v58";
 const SHELL = ["/", "/static/index.html", "/static/app.js", "/static/style.css", "/static/icon.svg",
                "/static/icon-192.png", "/static/icon-512.png", "/static/apple-touch-icon.png",
                "/static/manifest.webmanifest"];
